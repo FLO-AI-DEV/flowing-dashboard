@@ -1,0 +1,30 @@
+# ---- secrets: never commit these ----
+.env
+.env.*
+!backend/.env.example
+service-account.json
+*service-account*.json
+*credentials*.json
+*-sa-key*.json
+gcp-key*.json
+
+# ---- Python ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---- Node / frontend ----
+node_modules/
+frontend/dist/
+
+# ---- local logs ----
+*.log
+backend/chat_questions.log
+
+# ---- editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
