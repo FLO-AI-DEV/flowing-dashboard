@@ -17,7 +17,9 @@ import numpy as np
 import pandas as pd
 
 from ..core import (MONTH_NAME_BY_NUM, clean_delay_days, clean_text, fmt, month_label, month_sort_key, norm_key, num, parse_dates, safe_div_pct)
+from ..core import today_ist
 from ..tables import RATE_APPROVAL, kpi, notice, table
+from . import extra as ex
 
 COLS = {
     "po_date": ["PO / ORDER DATE", "PO DATE", "ORDER DATE", "PO ORDER DATE"],
@@ -138,6 +140,13 @@ def parse_orders(grid, today: pd.Timestamp):
     d["delay_days"] = np.where(d["timing"] == "Delayed",
                                np.where(d["received_date"].notna() & has_due,
                                         (d["received_date"] - d["delivery_date"]).dt.days, d["delay_sheet"]), 0)
+    # due / delivery window (for the Window filter)
+    left = (d["delivery_date"] - today).dt.days
+    d["window"] = np.select(
+        [d["timing"] == "Overdue (Pending)", d["timing"] == "Open (Within Deadline)", d["timing"] == "No Date",
+         d["timing"].isin(["On Time", "Delayed"])],
+        [ex.overdue_band(d["overdue_days"]), ex.due_band(left), "No delivery date", "Fully received"], default="")
+    d["amount_band"] = ex.amount_band(d["order_amt"])
     d["overdue_amt"] = np.where(d["timing"] == "Overdue (Pending)", d["pending"], 0.0)
     d["overdue_qty"] = np.where(d["timing"] == "Overdue (Pending)", d["pending_qty"], 0.0)
     return d.reset_index(drop=True), None
@@ -189,15 +198,29 @@ def options(d: pd.DataFrame) -> dict:
     def vals(c):
         return sorted(v for v in d[c].unique() if v and v != "(BLANK)")
     return {"month": month_axis(d), "vendor": vals("vendor"), "department": vals("department"),
-            "category": vals("category"), "city": vals("city"), "timing": [t for t in TIMINGS if (d["timing"] == t).any()]}
+            "category": vals("category"), "city": vals("city"), "timing": [t for t in TIMINGS if (d["timing"] == t).any()],
+            "window": [w for w in ex.ORDER_WINDOWS if (d["window"] == w).any()],
+            "supplier_type": ex.SUPPLIER_TYPES if ex.is_msme(d["vendor"]).any() else [],
+            "amount": [a for a in ex.AMOUNTS if (d["amount_band"] == a).any()], "period": ex.PERIODS}
+
+
+SEARCH_COLS = ["po", "vendor", "design", "supplier_design", "item", "category", "department", "city", "fabric", "remark"]
 
 
 def apply_filters(d: pd.DataFrame, f: dict) -> pd.DataFrame:
     x = d
     for key, col in (("month", "month"), ("vendor", "vendor"), ("department", "department"),
-                     ("category", "category"), ("city", "city"), ("timing", "timing")):
+                     ("category", "category"), ("city", "city"), ("timing", "timing"), ("window", "window"),
+                     ("amount", "amount_band")):
         if f.get(key):
             x = x[x[col].isin(f[key])]
+    rng = ex.period_range(f, today_ist())
+    if rng:
+        x = x[ex.in_period(x["po_date"], rng)]
+    if f.get("supplier_type"):
+        x = x[ex.supplier_type(x["vendor"], f["supplier_type"])]
+    if f.get("q"):
+        x = x[ex.search(x, SEARCH_COLS, f["q"])]
     return x
 
 

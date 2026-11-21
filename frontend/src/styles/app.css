@@ -1651,6 +1651,7 @@ a.alert:hover {
 
 /* Flo-Wing: stacked panel spacing */
 .panel.mt { margin-top: 16px; }
+.grid.mt { margin-top: 16px; }
 
 /* ============================================================================ list switch (Supplier enquiries) */
 .view-switch {

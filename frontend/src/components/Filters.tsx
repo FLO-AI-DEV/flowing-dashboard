@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { describeMonths, monthRange } from "../lib/filters";
 import { shortMonth, titleCase } from "../lib/format";
 
-function usePopover() {
+export function usePopover() {
   const [open, setOpen] = useState(false);
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
@@ -42,9 +42,9 @@ function usePopover() {
   return { open, setOpen, btn, pop, pos };
 }
 
-function Trigger({ label, value, isSet, open, onClick, btnRef, icon, controls }: { label: string; value: string; isSet: boolean; open: boolean; onClick: () => void; btnRef: React.RefObject<HTMLButtonElement | null>; icon?: ReactNode; controls: string }) {
+export function Trigger({ label, value, isSet, open, onClick, btnRef, icon, controls, title }: { label: string; value: string; isSet: boolean; open: boolean; onClick: () => void; btnRef: React.RefObject<HTMLButtonElement | null>; icon?: ReactNode; controls: string; title?: string }) {
   return (
-    <button ref={btnRef} type="button" className={`fbtn${isSet ? " is-set" : ""}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={controls} onClick={onClick}>
+    <button ref={btnRef} type="button" title={title} className={`fbtn${isSet ? " is-set" : ""}`} aria-haspopup="dialog" aria-expanded={open} aria-controls={controls} onClick={onClick}>
       {icon}
       <span className="k">{label}</span>
       <span className="v">{value}</span>

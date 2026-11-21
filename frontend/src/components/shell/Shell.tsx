@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, MessageSquareText, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sheet, Sun, Truck, X } from "lucide-react";
+import { Building2, CalendarCheck, ClipboardList, MessageSquareText, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sheet, Sun, Truck, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFetchingReporter, useRefreshAll } from "../../api/hooks";
@@ -10,6 +10,7 @@ import { LiveStatus } from "./LiveStatus";
 export const NAV = [
   { group: "Operations", items: [
     { to: "/", label: "Overview", icon: LayoutDashboard },
+    { to: "/today", label: "Today", icon: CalendarCheck },
     { to: "/orders", label: "Orders", icon: ClipboardList },
     { to: "/vendors", label: "Vendors", icon: Building2 },
   ] },

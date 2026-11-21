@@ -2,17 +2,18 @@ import { useDashboard } from "../api/hooks";
 import type { DuesData } from "../api/types";
 import { BarList } from "../components/charts/Lists";
 import { DataTable } from "../components/DataTable";
+import { ExtraFilters } from "../components/ExtraFilters";
 import { FilterBar, MultiSelect } from "../components/Filters";
 import { Empty, KpiStrip, Notices, Panel, Section } from "../components/ui";
-import { useFilters } from "../lib/filters";
+import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { fmtInt, inrShort } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["tab", "supplier", "agency"];
+const KEYS = ["tab", "supplier", "agency", ...EXTRA_KEYS];
 
 export default function Dues() {
   const f = useFilters(KEYS);
-  const q = useDashboard<DuesData>("/dues", { tab: f.values.tab[0] ?? "", supplier: f.values.supplier, agency: f.values.agency });
+  const q = useDashboard<DuesData>("/dues", { ...f.values, tab: f.values.tab[0] ?? "" });
   return (
     <div className="page">
       <PageState q={q}>
@@ -39,6 +40,7 @@ export default function Dues() {
                 <MultiSelect label="Supplier" options={d.options.supplier} value={f.values.supplier} onChange={(v) => f.set("supplier", v)} />
                 <MultiSelect label="Agency" options={d.options.agency} value={f.values.agency} onChange={(v) => f.set("agency", v)} />
                 {d.title && <span className="applied">{d.title}</span>}
+                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf="bill date" windowLabel="Due window" search="Search supplier, bill no., agency…" />
               </FilterBar>
               <Notices items={d.notices} />
               {d.empty ? (

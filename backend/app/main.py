@@ -34,6 +34,8 @@ from .config import SHEET_REGISTRY, get_settings
 from .core import FY_LABEL, FY_MONTH_LABELS, MONTHNO_TO_LABEL, now_ist, today_ist
 from .dashboards import dues as dus
 from .dashboards import enquiry as enq
+from .dashboards import extra as ex
+from .dashboards import today as tdy
 from .dashboards import generic as gen
 from .dashboards import orders as ords
 from .dashboards import overview as ovw
@@ -166,6 +168,25 @@ def _clean(values: list[str] | None) -> list[str]:
 Multi = Annotated[list[str], Query()]
 
 
+def extra_filters(period: Annotated[str, Query(max_length=20)] = "", date_from: Annotated[str, Query(max_length=10)] = "",
+                  date_to: Annotated[str, Query(max_length=10)] = "", q: Annotated[str, Query(max_length=100)] = "",
+                  window: Multi = [], supplier_type: Multi = [], amount: Multi = []) -> dict:
+    """Filters every page shares: date period, search, due / delivery window, supplier type, amount range."""
+    return {"period": period.strip(), "date_from": date_from.strip(), "date_to": date_to.strip(), "q": q.strip(),
+            "window": _clean(window), "supplier_type": _clean(supplier_type), "amount": _clean(amount)}
+
+
+Extra = Annotated[dict, Depends(extra_filters)]
+NO_EXTRA = extra_filters()          # for calling a page function directly (assistant, quick answers)
+
+
+def _with_period(body: dict, f: dict) -> dict:
+    """The dates the period filter stands for, so the page can say exactly what it shows."""
+    rng = ex.period_range(f, today_ist())
+    body["period_label"] = ex.describe_period(rng)
+    return body
+
+
 # ------------------------------------------------------------------------------------------------ routes
 @app.get("/api/health")
 def health():
@@ -189,46 +210,58 @@ def refresh():
 
 
 @app.get("/api/overview", dependencies=[Depends(require_auth)])
-def overview(month: Multi = []):
+def overview(extra: Extra, month: Multi = [], role: Annotated[str, Query(max_length=30)] = ""):
     ds = get_store().datasets(KINDS)
     sources = {k: (v.data, v.error if v.data is None else None) for k, v in ds.items()}
-    return _envelope(ovw.overview_dashboard(sources, _clean(month), today_ist()), *ds.values())
+    body = ovw.overview_dashboard(sources, _clean(month), today_ist(), extra, role.strip())
+    return _envelope(_with_period(body, extra), *ds.values())
+
+
+@app.get("/api/today", dependencies=[Depends(require_auth)])
+def today(role: Annotated[str, Query(max_length=30)] = ""):  # noqa: F811 - route function, not the date
+    """What happened today / in the last 7 days and what is due today / in the next 7 days, across all sheets."""
+    ds = get_store().datasets(KINDS)
+    sources = {k: (v.data, v.error if v.data is None else None) for k, v in ds.items()}
+    return _envelope(tdy.today_dashboard(sources, now_ist(), role.strip()), *ds.values())
 
 
 ORDER_KEYS = ("month", "vendor", "department", "category", "city", "timing")
 
 
 @app.get("/api/orders", dependencies=[Depends(require_auth)])
-def orders(month: Multi = [], vendor: Multi = [], department: Multi = [], category: Multi = [], city: Multi = [],
-           timing: Multi = []):
+def orders(extra: Extra, month: Multi = [], vendor: Multi = [], department: Multi = [], category: Multi = [],
+           city: Multi = [], timing: Multi = []):
     ds = get_store().dataset("order_status")
-    f = {"month": _clean(month), "vendor": _clean(vendor), "department": _clean(department),
+    f = {**extra, "month": _clean(month), "vendor": _clean(vendor), "department": _clean(department),
          "category": _clean(category), "city": _clean(city), "timing": _clean(timing)}
-    return _envelope(ords.orders_dashboard(_need(ds), f), ds)
+    return _envelope(_with_period(ords.orders_dashboard(_need(ds), f), f), ds)
 
 
 @app.get("/api/vendors", dependencies=[Depends(require_auth)])
-def vendors(month: Multi = [], department: Multi = [], category: Multi = [], city: Multi = []):
+def vendors(extra: Extra, month: Multi = [], department: Multi = [], category: Multi = [], city: Multi = []):
     ds = get_store().dataset("order_status")
-    f = {"month": _clean(month), "department": _clean(department), "category": _clean(category), "city": _clean(city)}
-    return _envelope(ords.vendors_dashboard(_need(ds), f), ds)
+    f = {**extra, "month": _clean(month), "department": _clean(department), "category": _clean(category),
+         "city": _clean(city)}
+    return _envelope(_with_period(ords.vendors_dashboard(_need(ds), f), f), ds)
 
 
 @app.get("/api/dues", dependencies=[Depends(require_auth)])
-def dues(tab: str = "", supplier: Multi = [], agency: Multi = []):
+def dues(extra: Extra, tab: str = "", supplier: Multi = [], agency: Multi = []):
     store = get_store()
     ds = store.dataset("dues", tab or None)
-    body = dus.dues_dashboard(_need(ds), {"supplier": _clean(supplier), "agency": _clean(agency)}, today_ist())
+    f = {**extra, "supplier": _clean(supplier), "agency": _clean(agency)}
+    body = _with_period(dus.dues_dashboard(_need(ds), f, today_ist()), f)
     body["tab"] = ds.tabs[0] if ds.tabs else ""
     body["tabs"] = store.all_tabs("dues")
     return _envelope(body, ds)
 
 
 @app.get("/api/order-to-vendors", dependencies=[Depends(require_auth)])
-def order_to_vendors(tab: str = "", vendor: Multi = [], status: Multi = []):
+def order_to_vendors(extra: Extra, tab: str = "", vendor: Multi = [], status: Multi = []):
     store = get_store()
     ds = store.dataset("order_to_vendors", tab or None)
-    body = gen.otv_dashboard(_need(ds), {"vendor": _clean(vendor), "status": _clean(status)})
+    f = {**extra, "vendor": _clean(vendor), "status": _clean(status)}
+    body = _with_period(gen.otv_dashboard(_need(ds), f), f)
     body["tab"] = ds.tabs[0] if ds.tabs else ""
     body["tabs"] = store.all_tabs("order_to_vendors")
     return _envelope(body, ds)
@@ -238,12 +271,13 @@ ENQUIRY_KEYS = ("month", "status", "handler", "topic", "party", "city", "po_stat
 
 
 @app.get("/api/enquiries", dependencies=[Depends(require_auth)])
-def enquiries(month: Multi = [], status: Multi = [], handler: Multi = [], topic: Multi = [], party: Multi = [],
-              city: Multi = [], po_status: Multi = [], approval: Multi = []):
+def enquiries(extra: Extra, month: Multi = [], status: Multi = [], handler: Multi = [], topic: Multi = [],
+              party: Multi = [], city: Multi = [], po_status: Multi = [], approval: Multi = []):
     store = get_store()
     ds = store.dataset("supplier_enquiry")
-    f = dict(zip(ENQUIRY_KEYS, map(_clean, (month, status, handler, topic, party, city, po_status, approval))))
-    body = enq.enquiry_dashboard(_need(ds), f, today_ist())
+    f = {**extra, **dict(zip(ENQUIRY_KEYS, map(_clean, (month, status, handler, topic, party, city, po_status,
+                                                        approval))))}
+    body = _with_period(enq.enquiry_dashboard(_need(ds), f, today_ist()), f)
     body["tabs"] = {r: t for r, t in zip(SHEET_REGISTRY["supplier_enquiry"]["tabs"], ds.tabs)}
     return _envelope(body, ds)
 
@@ -288,7 +322,7 @@ _ASSISTANT_PAGES = {"overview": overview, "orders": orders, "vendors": vendors, 
 
 def _assistant_fetch(page: str, filters: dict) -> dict:
     """The assistant reads the dashboard only through the same read-only functions the pages call."""
-    return _ASSISTANT_PAGES[page](**filters)
+    return _ASSISTANT_PAGES[page](dict(NO_EXTRA), **filters)
 
 
 @lru_cache(maxsize=1)
@@ -350,7 +384,7 @@ def _analyst_reply(question: str, history: list) -> dict | None:
 
 SHEET_PAGES = {"orders": ("/orders", "Orders"), "vendors": ("/vendors", "Vendors"), "dues": ("/dues", "Supplier dues"),
                "order-to-vendors": ("/order-to-vendors", "Order to vendors"), "overview": ("/", "Overview"),
-               "enquiries": ("/enquiries", "Supplier enquiries")}
+               "enquiries": ("/enquiries", "Supplier enquiries"), "today": ("/today", "Today")}
 
 
 @app.post("/api/chat", dependencies=[Depends(require_auth)])
@@ -388,14 +422,31 @@ _ATTENTION = re.compile(r"\b(overview|needs? attention|attention|urgent|alerts?|
                         r"sab ka summary|status report|kya chal raha)\b", re.I)
 
 
+_TODAY = re.compile(r"\b(what happened today|aaj kya hua|aaj ka (update|summary|report|hisab)|today'?s (update|summary|report)|"
+                    r"today summary|summary (of|for) today|daily (update|summary|report)|aaj ki report)\b", re.I)
+
+
+def _today_answer() -> dict | None:
+    data = today()
+    lines = [f"**{data['date']}**" + (": " + "; ".join(data["lede"]) + "." if data["lede"] else "")]
+    for sec in data["sections"]:
+        figs = ", ".join(f"{k['label']} **{fmt_value(k.get('value'), k.get('format'), k.get('unit') or '')}**"
+                         for k in sec["kpis"][:5])
+        lines.append(f"• **{sec['title']}**: {figs}.")
+    return {"answer": "\n".join(lines), "page": "/today", "page_label": "Today", "context": {}, "understood": True,
+            "intent": "today", "engine": "rules"}
+
+
 def _quick(message: str) -> dict | None:
-    """Greetings and 'what needs attention' are answered without parsing (instant)."""
+    """Greetings, 'what needs attention' and 'today's summary' are answered without parsing (instant)."""
+    if _TODAY.search(message):
+        return _today_answer()
     if _HELLO.match(message):
         out = get_assistant().answer("what can you do", None)
         out["answer"] = out["answer"] + "\n\nYou can also ask what any word means, e.g. \"PO kya hai\" or \"what is ageing\"."
         return out
     if _ATTENTION.search(message) and len(message.split()) <= 8:
-        data = overview(month=[])
+        data = overview(dict(NO_EXTRA), month=[])
         items = [f"• **{a['title']}**: {a['text']}" for a in data.get("alerts", [])]
         items += [f"• ⚠ {e.get('text', '') if isinstance(e, dict) else e}" for e in data.get("errors", [])]
         if not items:
@@ -411,7 +462,7 @@ _OTV = re.compile(r"\b(orders? to vendors?|vendor orders?|otv)\b", re.I)
 def _otv_summary() -> dict | None:
     """Order to vendors in one answer: its headline figures and the split by status."""
     try:
-        d = order_to_vendors()
+        d = order_to_vendors(dict(NO_EXTRA))
     except Exception:  # noqa: BLE001
         return None
     if not d.get("kpis"):

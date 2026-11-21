@@ -13,12 +13,20 @@ live sync, intro, dark mode, phone layout and assistant. Only the sheets, calcul
 | Page | Sheet | What it answers |
 |---|---|---|
 | **Overview** | all | What needs attention now: the sheets wired into FLO, alert cards, orders, dues, vendor orders |
+| **Today** | all | What happened today and in the last 7 days (POs raised, goods received, enquiries logged) and what is due today and in the next 7 days (deliveries, bills) |
 | **Orders** | Order Status (2026-2027) → `PO Master` | What's still to come in and what's late, by month, vendor, category, department, city; every PO |
 | **Vendors** | Order Status → `PO Master` | Who owes the most, who is late, who delivers on time (scorecard) |
 | **Order to vendors** | Order to vendors | Rows, totals and breakdown by status and vendor (columns found by name) |
 | **Supplier dues** | DUES PAYMENT SUPPLIERS | Payable, overdue, due in 7 days, ageing, by supplier and agency, every bill |
 | **Supplier enquiries** | Supplier's Enquiry Sheet → `Sheet1`, `Supplier's Enquiry Sheet`, `Terms Approval`, `Inactive25-26`, `purchase issues` | Pending / unsolved enquiries, who is following up and for how long, topics; suppliers waiting for a PO by city; payment-terms approvals; inactive suppliers. Switch lists at the top; filters and search per list |
 | **Sheets** | all | Any tab of any sheet, live, with search and CSV |
+
+**Filters on every page** (besides each page's own): **Period** (Today, Yesterday, Last 7 days, This week, This
+month, Last month, Last 30 days, This quarter, This FY, or custom dates), **Search** (PO no., design no., supplier,
+enquiry text… the whole page follows it), **Due window** (overdue 1-30 / 31-60 / 61-90 / 90+ days, due in next
+7 days…), **Supplier type** (MSME / Non-MSME), **Amount** range. Overview and Today also have **View as**
+(Management, Purchase team, Accounts), remembered on each device. Every filter is kept in the page link, so a
+filtered view can be shared.
 
 **Flo-Wing Assistant** (robot, bottom right): "total pending", "sabse zyada pending kis vendor ke paas hai",
 "pending kitna percent hai ordered ka", "payment due this week", "status of po 12",

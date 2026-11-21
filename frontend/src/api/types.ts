@@ -79,8 +79,37 @@ export interface Meta {
   sources: SourceMeta[];
 }
 
+export interface TodayTable {
+  title: string;
+  sub?: string;
+  table: TableData;
+}
+
+export interface TodaySection {
+  id: string;
+  area: string;
+  title: string;
+  sub?: string;
+  link?: string;
+  notices?: Notice[];
+  kpis: Kpi[];
+  tables: TodayTable[];
+}
+
+export interface TodayData extends Envelope {
+  date: string;
+  as_of: string;
+  lede: string[];
+  role: string;
+  options: Options;
+  sections: TodaySection[];
+  windows: { last7: string; next7: string };
+}
+
 export interface Envelope {
   meta: Meta;
+  /** dates the Period filter stands for, e.g. "01 Nov – 21 Nov 2026" (empty = all dates) */
+  period_label?: string;
 }
 
 export type Options = Record<string, string[]>;

@@ -4,13 +4,14 @@ import { colorFor, Legend } from "../components/charts/common";
 import { HBars } from "../components/charts/HBars";
 import { BarList } from "../components/charts/Lists";
 import { DataTable } from "../components/DataTable";
+import { ExtraFilters } from "../components/ExtraFilters";
 import { FilterBar, MonthFilter, MultiSelect } from "../components/Filters";
 import { Empty, KpiStrip, Notices, Panel, Section } from "../components/ui";
-import { useFilters } from "../lib/filters";
+import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { inrShort, titleCase } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["month", "department", "category", "city"];
+const KEYS = ["month", "department", "category", "city", ...EXTRA_KEYS];
 
 export default function Vendors() {
   const f = useFilters(KEYS);
@@ -49,6 +50,7 @@ export default function Vendors() {
                 <MultiSelect label="Department" options={d.options.department} value={f.values.department} onChange={(v) => f.set("department", v)} />
                 <MultiSelect label="Category" options={d.options.category} value={f.values.category} onChange={(v) => f.set("category", v)} />
                 <MultiSelect label="City" options={d.options.city} value={f.values.city} onChange={(v) => f.set("city", v)} />
+                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf="PO date" windowLabel="Due window" search="Search vendor, PO, design…" />
               </FilterBar>
               <Notices items={d.notices} />
               {d.empty ? (

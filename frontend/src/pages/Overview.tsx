@@ -8,13 +8,14 @@ import { HBars } from "../components/charts/HBars";
 import { BarList, Split } from "../components/charts/Lists";
 import { DataFlow, type FlowOut } from "../components/DataFlow";
 import { DataTable } from "../components/DataTable";
+import { ExtraFilters, RoleFilter, useRole } from "../components/ExtraFilters";
 import { FilterBar, MonthFilter } from "../components/Filters";
 import { KpiStrip, Notices, Panel, Section } from "../components/ui";
-import { useFilters } from "../lib/filters";
+import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { inrShort, titleCase } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["month"];
+const KEYS = ["month", "role", ...EXTRA_KEYS];
 const AREA_LINK: Record<string, string> = {
   overdue: "/orders?timing=Overdue+(Pending)",
   orders: "/orders",
@@ -57,7 +58,8 @@ function AlertCard({ a }: { a: Alert }) {
 
 export default function Overview() {
   const f = useFilters(KEYS);
-  const q = useDashboard<OverviewData>("/overview", { month: f.values.month });
+  const { role, setRole } = useRole(f);
+  const q = useDashboard<OverviewData>("/overview", { ...f.values, role });
   const status = useStatus();
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -93,8 +95,10 @@ export default function Overview() {
                 }
               />
               <FilterBar active={f.active} onReset={f.reset}>
+                <RoleFilter options={d.options.role ?? []} role={role} setRole={setRole} />
                 <MonthFilter options={d.options.month} value={f.values.month} onChange={(v) => f.set("month", v)} />
-                <span className="applied">Orders by PO date · dues and vendor orders are not month-filtered</span>
+                <ExtraFilters f={f} options={{ ...d.options, window: [] }} periodLabel={d.period_label} dateOf="PO date, bill date, enquiry date" search="Search supplier, PO, design…" />
+                <span className="applied">Month: orders by PO date only</span>
               </FilterBar>
               <Notices items={d.errors} />
 

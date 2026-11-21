@@ -15,6 +15,7 @@ const OrderToVendors = lazy(() => import("./pages/OrderToVendors"));
 const Dues = lazy(() => import("./pages/Dues"));
 const Sheets = lazy(() => import("./pages/Sheets"));
 const Enquiries = lazy(() => import("./pages/Enquiries"));
+const Today = lazy(() => import("./pages/Today"));
 
 function SignIn({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState("");
@@ -77,6 +78,7 @@ function Dashboard() {
         <Suspense fallback={<div className="page"><PageSkeleton /></div>}>
           <Routes>
             <Route path="/" element={<Overview />} />
+            <Route path="/today" element={<Today />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/vendors" element={<Vendors />} />
             <Route path="/order-to-vendors" element={<OrderToVendors />} />

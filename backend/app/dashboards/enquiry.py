@@ -18,6 +18,7 @@ import pandas as pd
 
 from ..core import clean_text, month_label, month_sort_key, norm_key, num, parse_dates
 from ..tables import RATE_APPROVAL, kpi, notice, table
+from . import extra as ex
 
 CITIES = ["KOLKATA", "MUMBAI", "SURAT", "AHMEDABAD", "JAIPUR", "DELHI", "LUDHIANA", "BANGALORE", "CHENNAI"]
 STATUS_ORDER = ["Unsolved", "In process", "No status", "Solved"]
@@ -242,6 +243,19 @@ def parse_enquiry_sheet(grids: dict, today: pd.Timestamp) -> dict:
 
 
 # --------------------------------------------------------------------------------------------- dashboard
+def _common(df: pd.DataFrame, f: dict, today, date_col, name_col, search_cols) -> pd.DataFrame:
+    """Period, supplier type and search: the filters every list on this sheet shares."""
+    rng = ex.period_range(f, today) if date_col else None
+    if rng:
+        df = df[ex.in_period(df[date_col], rng)]
+    if f.get("supplier_type") and name_col:
+        df = df[ex.supplier_type(df[name_col], f["supplier_type"])]
+    if f.get("q"):
+        df = df[ex.search(df, search_cols, f["q"])]
+    return df
+
+
+
 def _vals(s: pd.Series) -> list[str]:
     return sorted(v for v in s.unique() if v and v not in ("(BLANK)", "-", "(Not assigned)"))
 
@@ -260,11 +274,15 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
                                                                           if (e["topic"] == t).any()],
             "party": sorted(e["party_key"].unique()),
         })
+        e = e.assign(window=ex.pending_band(e["age"], e["status"] == "Solved"))
+        options["window"] = [w for w in ex.PENDING_WINDOWS if (e["window"] == w).any()]
         x = e
         for key, col in (("month", "month"), ("status", "status"), ("handler", "handler"), ("topic", "topic"),
-                         ("party", "party_key")):
+                         ("party", "party_key"), ("window", "window")):
             if f.get(key):
                 x = x[x[col].isin(f[key])]
+        x = _common(x, f, today, "date", "party", ["party", "about", "person", "handler", "remarks", "notes", "topic",
+                                                    "contact"])
         opened = x[x["open"]]
         solved = int((x["status"] == "Solved").sum())
         rate = 100 * solved / len(x) if len(x) else 0.0
@@ -335,11 +353,15 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
     if c is not None and not c.empty:
         options["city"] = sorted(c["city"].unique())
         options["po_status"] = ["Waiting for PO", "PO issued"]
+        c = c.assign(window=ex.pending_band(c["age"], c["status"] == "PO issued"))
         y = c
         if f.get("city"):
             y = y[y["city"].isin(f["city"])]
         if f.get("po_status"):
             y = y[y["status"].isin(f["po_status"])]
+        if f.get("window"):
+            y = y[y["window"].isin(f["window"])]
+        y = _common(y, f, today, "date", "supplier", ["city", "supplier", "date_text"])
         rows = []
         for city, gg in y.groupby("city"):
             rows.append({"City": city, "Suppliers listed": len(gg), "Waiting for PO": int((gg["status"] == "Waiting for PO").sum()),
@@ -386,6 +408,8 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
     if t is not None and not t.empty:
         options["approval"] = [s for s in ("Approved", "Pending", "Not filled", "Rejected") if (t["status"] == s).any()]
         z = t[t["status"].isin(f["approval"])] if f.get("approval") else t
+        z = _common(z, f, today, "date", "supplier", ["supplier", "code", "other", "confirmed_by", "approved_by",
+                                                       "discount", "days"])
         sections["terms"] = {
             "kpis": [
                 kpi("Suppliers", len(z), "", id="terms_suppliers"),
@@ -414,6 +438,7 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
             tb["Qty bought earlier"] = num(ina[qty_c])
             tb = tb.sort_values("Qty bought earlier", ascending=False)
         tb = tb[tb["Supplier"] != ""]
+        tb = _common(tb, f, today, None, "Supplier", ["Supplier"])
         sections["inactive"] = {
             "kpis": [kpi("Inactive suppliers", len(tb), "", id="inactive"),
                      *([kpi("Pieces bought from them before", float(tb["Qty bought earlier"].sum()), "pcs", id="inactive_qty")]
@@ -423,7 +448,13 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
         }
     iss = p.get("issues")
     if iss is not None and not iss.empty:
+        iss = _common(iss.astype(str), f, today, None, None, list(iss.columns))
         sections["issues"] = {"kpis": [kpi("Purchase issues", len(iss), "", id="issues", tone="alert")],
                               "tables": {"issues": table(iss.astype(str), sort=False)}}
 
+    options["period"] = ex.PERIODS
+    names = pd.concat([v[col] for v, col in ((p.get("enquiries"), "party"), (p.get("city_po"), "supplier"),
+                                             (p.get("terms"), "supplier")) if v is not None and not v.empty] or
+                      [pd.Series(dtype=str)])
+    options["supplier_type"] = ex.SUPPLIER_TYPES if ex.is_msme(names).any() else []
     return {"options": options, "notices": notices, "sections": sections, "views": list(sections.keys())}

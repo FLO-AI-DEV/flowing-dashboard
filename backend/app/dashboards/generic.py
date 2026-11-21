@@ -10,7 +10,9 @@ import re
 import pandas as pd
 
 from ..core import clean_text, is_number_text, norm_key, num, parse_dates
+from ..core import today_ist
 from ..tables import kpi, notice, table
+from . import extra as ex
 
 
 def detect_header(grid, scan=20) -> int:
@@ -108,16 +110,30 @@ def otv_dashboard(grid, f: dict) -> dict:
     amount = next((c for c in [_col(t.columns, "Order Amt", "Order Amount", "Amount", "Amt", "Value", "Total")]
                    if c and fmts.get(c) in ("int", "dec")), None)
     qty = next((c for c in [_col(t.columns, "Order Qty", "Qty", "Quantity", "Pcs")] if c and fmts.get(c) in ("int", "dec")), None)
-    opts = {}
+    date = next((c for c in [_col(t.columns, "Order Date", "PO Date", "Date")] if c and fmts.get(c) == "date"), None)
+    opts = {"period": ex.PERIODS if date else []}
     if vendor:
         opts["vendor"] = sorted(v for v in t[vendor].unique() if v)
+        opts["supplier_type"] = ex.SUPPLIER_TYPES if ex.is_msme(t[vendor]).any() else []
     if status:
         opts["status"] = sorted(v for v in t[status].unique() if v)
+    if amount:
+        band = ex.amount_band(t[amount])
+        opts["amount"] = [a for a in ex.AMOUNTS if (band == a).any()]
     x = t
     if f.get("vendor") and vendor:
         x = x[x[vendor].isin(f["vendor"])]
     if f.get("status") and status:
         x = x[x[status].isin(f["status"])]
+    if f.get("supplier_type") and vendor:
+        x = x[ex.supplier_type(x[vendor], f["supplier_type"])]
+    if f.get("amount") and amount:
+        x = x[ex.amount_band(x[amount]).isin(f["amount"])]
+    rng = ex.period_range(f, today_ist()) if date else None
+    if rng:
+        x = x[ex.in_period(x[date], rng)]
+    if f.get("q"):
+        x = x[ex.search(x, [c for c in x.columns if fmts.get(c) in ("text", "date")], f["q"])]
 
     kpis = [kpi("Rows", len(x), "", id="rows")]
     if vendor:
@@ -136,7 +152,8 @@ def otv_dashboard(grid, f: dict) -> dict:
         "options": opts,
         "notices": [] if (vendor or status) else [notice(
             "No vendor or status column was recognised on this tab, so only the rows are shown.", "info")],
-        "detected": {"vendor": vendor, "status": status, "amount": amount, "qty": qty, "header_row": h + 1},
+        "detected": {"vendor": vendor, "status": status, "amount": amount, "qty": qty, "date": date,
+                     "header_row": h + 1},
         "kpis": kpis,
         "charts": {"by_status": share(status) if status else [], "by_vendor": share(vendor) if vendor else [],
                    "money": bool(amount)},

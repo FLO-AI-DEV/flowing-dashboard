@@ -12,6 +12,7 @@ import pandas as pd
 
 from ..core import clean_text, fmt, norm_key, num, parse_dates
 from ..tables import kpi, notice, table, with_total
+from . import extra as ex
 
 AGEING = ["Not due", "1-30 days", "31-60 days", "61-90 days", "90+ days"]
 
@@ -96,12 +97,31 @@ def dues_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
             d[c] = ""
         d[c] = d[c].fillna("").astype(str).str.strip()
     d["Agency"] = d["Agency"].str.upper().replace("", "(NO AGENCY)")
-    opts = {"supplier": sorted(d["party"].unique()), "agency": sorted(d["Agency"].unique())}
+    over = np.where(d["due_on"].notna() & (d["due_on"] < today), (today - d["due_on"]).dt.days, 0)
+    left = (d["due_on"] - today).dt.days.where(d["due_on"].notna() & (d["due_on"] >= today))
+    d["window"] = np.where(over > 0, ex.overdue_band(pd.Series(over, index=d.index)),
+                           np.where(d["due_on"].isna(), "No due date", ex.due_band(left)))
+    d["amount_band"] = ex.amount_band(d["net"])
+    opts = {"supplier": sorted(d["party"].unique()), "agency": sorted(d["Agency"].unique()),
+            "window": [w for w in ex.DUES_WINDOWS if (d["window"] == w).any()],
+            "supplier_type": ex.SUPPLIER_TYPES if ex.is_msme(d["party"]).any() else [],
+            "amount": [a for a in ex.AMOUNTS if (d["amount_band"] == a).any()], "period": ex.PERIODS}
     x = d
     if f.get("supplier"):
         x = x[x["party"].isin(f["supplier"])]
     if f.get("agency"):
         x = x[x["Agency"].isin(f["agency"])]
+    if f.get("window"):
+        x = x[x["window"].isin(f["window"])]
+    if f.get("amount"):
+        x = x[x["amount_band"].isin(f["amount"])]
+    if f.get("supplier_type"):
+        x = x[ex.supplier_type(x["party"], f["supplier_type"])]
+    rng = ex.period_range(f, today)
+    if rng:
+        x = x[ex.in_period(x["bill_date"], rng)]
+    if f.get("q"):
+        x = x[ex.search(x, ["party", "ref", "remark", "Agency"], f["q"])]
 
     notices = []
     if not d.empty and d["bill_date"].notna().any():

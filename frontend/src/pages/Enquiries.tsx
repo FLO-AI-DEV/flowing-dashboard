@@ -1,4 +1,4 @@
-import { ExternalLink, Search } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useDashboard } from "../api/hooks";
 import type { EnquiryData, EnquiryView, TableData } from "../api/types";
@@ -7,14 +7,15 @@ import { colorFor, Legend } from "../components/charts/common";
 import { HBars } from "../components/charts/HBars";
 import { BarList, Split } from "../components/charts/Lists";
 import { DataTable } from "../components/DataTable";
+import { ExtraFilters } from "../components/ExtraFilters";
 import { FilterBar, MonthFilter, MultiSelect } from "../components/Filters";
 import { Empty, KpiStrip, Notices, Panel, Section } from "../components/ui";
-import { useFilters } from "../lib/filters";
+import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { fmtInt } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
 const SHEET_URL = "https://docs.google.com/spreadsheets/d/16-BtrzzzHdoQ7HZrMyCUkZxEQJ7YduoaHbmW_v1d9B0/edit";
-const KEYS = ["view", "month", "status", "handler", "topic", "party", "city", "po_status", "approval"];
+const KEYS = ["view", "month", "status", "handler", "topic", "party", "city", "po_status", "approval", ...EXTRA_KEYS];
 
 const VIEWS: { id: EnquiryView; label: string; about: string }[] = [
   { id: "enquiries", label: "Enquiries", about: "Every supplier enquiry, its status, who is following it up and how long it has waited" },
@@ -36,11 +37,10 @@ const colors = (labels: string[]) => Object.fromEntries(labels.map((l, i) => [l,
 
 export default function Enquiries() {
   const f = useFilters(KEYS);
-  const [text, setText] = useState("");
-  const q = useDashboard<EnquiryData>("/enquiries", {
-    month: f.values.month, status: f.values.status, handler: f.values.handler, topic: f.values.topic, party: f.values.party,
-    city: f.values.city, po_status: f.values.po_status, approval: f.values.approval,
-  });
+  const text = "";            // the search box filters on the server now, so KPIs and charts follow it too
+  const { view: _view, ...params } = f.values;
+  void _view;
+  const q = useDashboard<EnquiryData>("/enquiries", params);
   return (
     <div className="page">
       <PageState q={q}>
@@ -50,7 +50,7 @@ export default function Enquiries() {
           const e = d.sections.enquiries;
           const c = d.sections.city_po;
           const active = KEYS.slice(1).reduce((n, k) => n + f.values[k].length, 0);
-          const reset = () => { KEYS.slice(1).forEach((k) => f.set(k, [])); setText(""); };
+          const reset = () => f.setMany(Object.fromEntries(KEYS.slice(1).map((k) => [k, []])));
           return (
             <>
               <PageHead
@@ -106,10 +106,14 @@ export default function Enquiries() {
                     {view.id === "terms" && (
                       <MultiSelect label="Approval" options={d.options.approval ?? []} value={f.values.approval} onChange={(v) => f.set("approval", v)} pretty={(x) => x} />
                     )}
-                    <label className="search-inline">
-                      <Search aria-hidden />
-                      <input className="field" type="search" placeholder="Search these rows…" value={text} onChange={(ev) => setText(ev.target.value)} aria-label="Search the rows below" />
-                    </label>
+                    <ExtraFilters
+                      f={f}
+                      options={{ ...d.options, window: view.id === "enquiries" || view.id === "city_po" ? d.options.window : [], period: view.id === "inactive" || view.id === "issues" ? [] : d.options.period }}
+                      periodLabel={d.period_label}
+                      dateOf={view.id === "city_po" ? "order date" : "date"}
+                      windowLabel="Days pending"
+                      search="Search supplier, enquiry, phone…"
+                    />
                   </FilterBar>
                   <Notices items={d.notices} />
                   {view.id === "enquiries" && e && <EnquiryView e={e} text={text} />}

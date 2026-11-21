@@ -5,13 +5,14 @@ import { colorFor, Legend, TIMING_COLORS } from "../components/charts/common";
 import { HBars } from "../components/charts/HBars";
 import { BarList, Split } from "../components/charts/Lists";
 import { DataTable } from "../components/DataTable";
+import { ExtraFilters } from "../components/ExtraFilters";
 import { FilterBar, MonthFilter, MultiSelect } from "../components/Filters";
 import { Empty, KpiStrip, Notices, Panel, Section } from "../components/ui";
-import { useFilters } from "../lib/filters";
+import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { fmtInt, inrShort, titleCase } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["month", "vendor", "department", "category", "city", "timing"];
+const KEYS = ["month", "vendor", "department", "category", "city", "timing", ...EXTRA_KEYS];
 
 export default function Orders() {
   const f = useFilters(KEYS);
@@ -51,6 +52,7 @@ export default function Orders() {
                 <MultiSelect label="Category" options={d.options.category} value={f.values.category} onChange={(v) => f.set("category", v)} />
                 <MultiSelect label="City" options={d.options.city} value={f.values.city} onChange={(v) => f.set("city", v)} />
                 <MultiSelect label="Delivery" options={d.options.timing} value={f.values.timing} onChange={(v) => f.set("timing", v)} pretty={(x) => x} />
+                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf="PO date" windowLabel="Due window" search="Search PO, design, vendor…" />
               </FilterBar>
               <Notices items={d.notices} />
               {d.empty ? (

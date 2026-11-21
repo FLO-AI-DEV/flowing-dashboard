@@ -5,11 +5,28 @@ from ..core import fmt, inr_short
 from ..tables import notice
 from . import dues as dus
 from . import enquiry as enq
+from . import extra as ex
 from . import generic as gen
 from . import orders as ords
 
 
-def overview_dashboard(sources: dict, months: list[str], today) -> dict:
+ROLES = {"Management": None,
+         "Purchase team": {"overdue", "orders", "otv", "enquiries", "none"},
+         "Accounts": {"dues", "none"}}
+
+
+def overview_dashboard(sources: dict, months: list[str], today, f: dict | None = None, role: str = "") -> dict:
+    out = _overview(sources, months, today, f or {})
+    keep = ROLES.get(role)
+    if keep is not None:          # "View as": only what that team works on
+        out["alerts"] = [a for a in out["alerts"] if a.get("area") in keep]
+        out["sections"] = {k: v for k, v in out["sections"].items() if k in keep}
+    out["options"]["role"] = list(ROLES)
+    out["role"] = role if role in ROLES else "Management"
+    return out
+
+
+def _overview(sources: dict, months: list[str], today, f: dict) -> dict:
     """sources: {"order_status": (df|None, err), "dues": (parsed|None, err), "order_to_vendors": (grid|None, err)}"""
     alerts, errors, sections = [], [], {}
     for key, label in (("order_status", "Order Status"), ("dues", "Supplier Dues"), ("order_to_vendors", "Order to Vendors"),
@@ -21,7 +38,7 @@ def overview_dashboard(sources: dict, months: list[str], today) -> dict:
     d, _ = sources["order_status"]
     if d is not None:
         month_options = ords.options(d)["month"]
-        o = ords.orders_dashboard(d, {"month": months})
+        o = ords.orders_dashboard(d, {**f, "month": months})
         if not o.get("empty"):
             s = o["summary"]
             k = {x["id"]: x["value"] for x in o["kpis"]}
@@ -51,7 +68,7 @@ def overview_dashboard(sources: dict, months: list[str], today) -> dict:
 
     p, _ = sources["dues"]
     if p is not None:
-        du = dus.dues_dashboard(p, {}, today)
+        du = dus.dues_dashboard(p, f, today)
         if not du.get("empty"):
             s = du["summary"]
             alerts.append({"kind": "error" if s["overdue"] > 0 else "success", "area": "dues",
@@ -63,7 +80,7 @@ def overview_dashboard(sources: dict, months: list[str], today) -> dict:
 
     g, _ = sources["order_to_vendors"]
     if g is not None:
-        ov = gen.otv_dashboard(g, {})
+        ov = gen.otv_dashboard(g, f)
         if not ov.get("empty"):
             rows = next((x["value"] for x in ov["kpis"] if x["id"] == "rows"), 0)
             st = ov["charts"]["by_status"]
@@ -74,7 +91,7 @@ def overview_dashboard(sources: dict, months: list[str], today) -> dict:
 
     q, _ = sources.get("supplier_enquiry", (None, None))
     if q is not None:
-        en = enq.enquiry_dashboard(q, {}, today)
+        en = enq.enquiry_dashboard(q, f, today)
         sec = en["sections"]
         if "enquiries" in sec:
             s = sec["enquiries"]["summary"]
@@ -91,4 +108,6 @@ def overview_dashboard(sources: dict, months: list[str], today) -> dict:
 
     if not alerts and not errors:
         alerts.append({"kind": "info", "area": "none", "title": "No data", "text": "There is no data for the selected months."})
-    return {"options": {"month": month_options}, "alerts": alerts, "errors": errors, "sections": sections}
+    return {"options": {"month": month_options, "period": ex.PERIODS,
+                        "supplier_type": ex.SUPPLIER_TYPES, "amount": ex.AMOUNTS},
+            "alerts": alerts, "errors": errors, "sections": sections}

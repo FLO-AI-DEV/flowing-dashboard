@@ -26,6 +26,24 @@ export function useFilters(keys: string[]) {
     [setSp],
   );
 
+  /** Set several keys in one URL update (separate set() calls in the same tick would overwrite each other). */
+  const setMany = useCallback(
+    (patch: Record<string, string[]>) => {
+      setSp(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          for (const [key, vals] of Object.entries(patch)) {
+            next.delete(key);
+            vals.forEach((v) => next.append(key, v));
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSp],
+  );
+
   const reset = useCallback(() => {
     setSp(
       (prev) => {
@@ -38,7 +56,7 @@ export function useFilters(keys: string[]) {
   }, [setSp, keys]);
 
   const active = keys.reduce((n, k) => n + (values[k].length ? 1 : 0), 0);
-  return { values, set, reset, active };
+  return { values, set, setMany, reset, active };
 }
 
 /** Month-range helper: the months between two labels (inclusive), in the given order. */
@@ -60,3 +78,6 @@ export function describeMonths(sel: string[], all: string[], short: (m: string) 
   if (sel.length <= 2) return sel.map(short).join(", ");
   return `${sel.length} months`;
 }
+
+/** URL keys of the filters every page shares (see ExtraFilters). */
+export const EXTRA_KEYS = ["period", "date_from", "date_to", "q", "window", "supplier_type", "amount"];

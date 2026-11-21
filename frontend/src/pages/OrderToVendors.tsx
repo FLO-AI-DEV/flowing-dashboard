@@ -2,17 +2,18 @@ import { useDashboard } from "../api/hooks";
 import type { OtvData } from "../api/types";
 import { BarList } from "../components/charts/Lists";
 import { DataTable } from "../components/DataTable";
+import { ExtraFilters } from "../components/ExtraFilters";
 import { FilterBar, MultiSelect } from "../components/Filters";
 import { Empty, KpiStrip, Notices, Panel, Section } from "../components/ui";
-import { useFilters } from "../lib/filters";
+import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { fmtInt } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["tab", "vendor", "status"];
+const KEYS = ["tab", "vendor", "status", ...EXTRA_KEYS];
 
 export default function OrderToVendors() {
   const f = useFilters(KEYS);
-  const q = useDashboard<OtvData>("/order-to-vendors", { tab: f.values.tab[0] ?? "", vendor: f.values.vendor, status: f.values.status });
+  const q = useDashboard<OtvData>("/order-to-vendors", { ...f.values, tab: f.values.tab[0] ?? "" });
   return (
     <div className="page">
       <PageState q={q}>
@@ -30,6 +31,7 @@ export default function OrderToVendors() {
                 {d.options?.vendor && <MultiSelect label="Vendor" options={d.options.vendor} value={f.values.vendor} onChange={(v) => f.set("vendor", v)} />}
                 {d.options?.status && <MultiSelect label="Status" options={d.options.status} value={f.values.status} onChange={(v) => f.set("status", v)} />}
                 {d.detected && <span className="applied">Header found on row {d.detected.header_row}</span>}
+                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf="order date" search="Search vendor, design, status…" />
               </FilterBar>
               <Notices items={d.notices} />
               {d.empty ? (
