@@ -1,6 +1,6 @@
 # Flo-Wing Operations Dashboard
 
-Live orders, vendors and supplier dues for Flo-Wing, read straight from Google Sheets and refreshed every minute,
+Live orders, vendors, supplier dues and supplier enquiries for Flo-Wing, read straight from Google Sheets and refreshed every minute,
 with a chatbot that answers questions about the numbers in English or Hinglish.
 
 Built on the FLO Operations Dashboard (`akshatparashar/flo-dashboard`): same FastAPI + React architecture, design,
@@ -17,10 +17,12 @@ live sync, intro, dark mode, phone layout and assistant. Only the sheets, calcul
 | **Vendors** | Order Status → `PO Master` | Who owes the most, who is late, who delivers on time (scorecard) |
 | **Order to vendors** | Order to vendors | Rows, totals and breakdown by status and vendor (columns found by name) |
 | **Supplier dues** | DUES PAYMENT SUPPLIERS | Payable, overdue, due in 7 days, ageing, by supplier and agency, every bill |
+| **Supplier enquiries** | Supplier's Enquiry Sheet → `Sheet1`, `Supplier's Enquiry Sheet`, `Terms Approval`, `Inactive25-26`, `purchase issues` | Pending / unsolved enquiries, who is following up and for how long, topics; suppliers waiting for a PO by city; payment-terms approvals; inactive suppliers. Switch lists at the top; filters and search per list |
 | **Sheets** | all | Any tab of any sheet, live, with search and CSV |
 
 **Flo-Wing Assistant** (robot, bottom right): "total pending", "sabse zyada pending kis vendor ke paas hai",
-"pending kitna percent hai ordered ka", "payment due this week", "status of po 12", follow-ups like "and received?".
+"pending kitna percent hai ordered ka", "payment due this week", "status of po 12",
+"kitni enquiry pending hai gungun ke paas", "suppliers waiting for PO in surat", follow-ups like "and received?".
 See [`docs/CHATBOT.md`](docs/CHATBOT.md).
 
 ## How it works

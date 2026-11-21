@@ -647,6 +647,9 @@ select.field {
 .span-12 {
   grid-column: span 12;
 }
+.span-9 {
+  grid-column: span 9;
+}
 .span-8 {
   grid-column: span 8;
 }
@@ -661,6 +664,9 @@ select.field {
 }
 .span-4 {
   grid-column: span 4;
+}
+.span-3 {
+  grid-column: span 3;
 }
 .stretch {
   align-self: stretch;
@@ -1501,6 +1507,8 @@ a.alert:hover {
   .span-5 {
     grid-column: span 6;
   }
+  .span-9,
+  .span-3,
   .span-8,
   .span-4 {
     grid-column: span 12;
@@ -1643,3 +1651,47 @@ a.alert:hover {
 
 /* Flo-Wing: stacked panel spacing */
 .panel.mt { margin-top: 16px; }
+
+/* ============================================================================ list switch (Supplier enquiries) */
+.view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 4px 0 14px;
+}
+.view-switch .seg {
+  flex-wrap: wrap;
+}
+.view-about {
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+.search-inline {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.search-inline svg {
+  position: absolute;
+  left: 9px;
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.search-inline .field {
+  height: 34px;
+  min-width: 230px;
+  padding-left: 30px;
+}
+@media (max-width: 640px) {
+  .view-switch .seg {
+    width: 100%;
+  }
+  .search-inline,
+  .search-inline .field {
+    width: 100%;
+    min-width: 0;
+  }
+}

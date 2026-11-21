@@ -357,6 +357,10 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
     for page in PAGES.values():
         if any(re.search(rf"\b{re.escape(w)}\b", t) for w in page.words):
             q.pages.append(page.key)
+    # Flo-Wing: enquiries / follow-ups / terms approval live on the enquiries page
+    if re.search(r"\b(enquir\w*|inquir\w*|complain\w*|unsolved|solved|in process|follow ?ups?|handl\w*|"
+                 r"terms? approv\w*|approv\w*|inactive|(kolkata|mumbai|surat|ahmedabad|jaipur) po)\b", t):
+        q.pages = ["enquiries"] + [p for p in q.pages if p != "enquiries"]
     # Flo-Wing: money owed to suppliers lives on the dues page; PO lines on the orders page
     if re.search(r"\b(dues?|payables?|payments?|pay|bills?|net payable|dena|dene|bhugtan|ageing|aging|agency)\b", t) \
             and "dues" not in q.pages:
@@ -365,6 +369,22 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
         q.pages.append("orders")
     if re.search(r"\b(on[- ]?time|scorecard|reliable|delay|late)\b", t) and "vendors" not in q.pages:
         q.pages.append("vendors")
+
+    # The enquiry sheet writes suppliers short ("kopal"), the order/dues sheets in full ("KOPAL (JAIPUR) MSME").
+    # Use the form that fits the page the question is about.
+    want = "party" if q.pages[:1] == ["enquiries"] else "vendor"
+    other = "vendor" if want == "party" else "party"
+    pool = [e for e in vocab.entities.values() if e.type == want]
+    swapped = []
+    for e in q.entities:
+        if e.type == other:
+            short, long_ = (e.key, None) if other == "party" else (None, e.key)
+            hits = [c for c in pool if (c.key == short or c.key.startswith(short + " ")) ] if short else \
+                   [c for c in pool if long_ == c.key or long_.startswith(c.key + " ")]
+            if hits:
+                e = min(hits, key=lambda c: len(c.key))
+        swapped.append(e)
+    q.entities = swapped
 
     # intent --------------------------------------------------------------------
     same_type = {}

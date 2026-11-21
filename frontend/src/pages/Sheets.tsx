@@ -13,7 +13,7 @@ import { PageHead, PageState } from "./common";
 
 const KEYS = ["source", "tab", "q"];
 
-/** Any tab of the three sheets, read live: pick a sheet and a tab, search, download. */
+/** Any tab of the Flo-Wing sheets, read live: pick a sheet and a tab, search, download. */
 export default function Sheets() {
   const f = useFilters(KEYS);
   const list = useQuery<{ sheets: SheetInfo[] }, Error>({ queryKey: ["/sheets"], queryFn: () => api("/sheets"), staleTime: 60_000 });
@@ -42,7 +42,7 @@ export default function Sheets() {
       <PageState q={q}>
         {(d) => (
           <>
-            <PageHead title="Sheets" meta={d.meta} lede={<>The three Flo-Wing sheets, read live from Google. <strong>{d.name}</strong> · {d.tab.trim()}.</>} />
+            <PageHead title="Sheets" meta={d.meta} lede={<>The Flo-Wing sheets, read live from Google. <strong>{d.name}</strong> · {d.tab.trim()}.</>} />
             <FilterBar active={f.values.q.length + f.values.tab.length} onReset={() => { setText(""); f.set("q", []); f.set("tab", []); }}>
               <MultiSelect label="Sheet" options={sheets.map((s) => s.key)} value={[source]} onChange={(v) => v.length && pickSheet(v)} single allLabel={current?.name ?? ""} pretty={(k) => sheets.find((s) => s.key === k)?.name ?? k} />
               <MultiSelect label="Tab" options={current?.tabs ?? []} value={f.values.tab} onChange={(v) => f.set("tab", v)} single allLabel={current?.default_tab?.trim() || d.tab.trim()} pretty={(x) => x.trim()} />

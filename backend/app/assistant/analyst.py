@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 
 API = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 DEFAULT_MODEL = "gemini-flash-lite-latest"
-FACT_PAGES = ["orders", "dues", "vendors", "order-to-vendors"]
+FACT_PAGES = ["orders", "dues", "vendors", "order-to-vendors", "enquiries"]
 MAX_FACTS = 8000          # characters of facts per question (keeps each call small)
 MAX_ROUNDS = 4            # model <-> calculator round trips
 
@@ -48,7 +48,9 @@ Answer ONLY from FACTS (read live from the company's Google Sheets) and this cha
 - Users write in English, Hindi or Hinglish, often with typos or no punctuation: work out what they mean and reply in the same style.
 - If a question is ambiguous, state your assumption in a few words (or ask one short question if it truly can't be answered).
 - If FACTS don't contain what is asked, say so and name the dashboard page that would show it. Never invent figures.
-- Pages: Orders (PO lines: ordered/received/pending/overdue), Vendors (scorecard), Supplier dues (payables), Order to vendors."""
+- Pages: Orders (PO lines: ordered/received/pending/overdue), Vendors (scorecard), Supplier dues (payables), Order to vendors,
+  Supplier enquiries (enquiry log with status solved/unsolved/in process and who handles it, pending POs by city,
+  payment-terms approval, inactive suppliers)."""
 
 TOOLS = [{"functionDeclarations": [{
     "name": "calculate",
@@ -102,7 +104,7 @@ def build_facts(assistant, question: str, today_month: str | None) -> tuple[str,
         for name, t in table_list(data):
             if not t.get("columns") or name in ("rows",):
                 continue
-            limit = 8 if name in ("pos", "overdue", "bills") else 15
+            limit = 8 if name in ("pos", "overdue", "bills", "open", "all", "list", "terms") else 15
             cols = t["columns"]
             lines.append(f"Table {name}: " + " | ".join(c["label"] for c in cols))
             body = [r for r, m in zip(t["rows"], t["meta"]) if not m.get("kind")][:limit]

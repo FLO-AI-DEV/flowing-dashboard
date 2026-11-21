@@ -14,6 +14,7 @@ const Vendors = lazy(() => import("./pages/Vendors"));
 const OrderToVendors = lazy(() => import("./pages/OrderToVendors"));
 const Dues = lazy(() => import("./pages/Dues"));
 const Sheets = lazy(() => import("./pages/Sheets"));
+const Enquiries = lazy(() => import("./pages/Enquiries"));
 
 function SignIn({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState("");
@@ -80,6 +81,7 @@ function Dashboard() {
             <Route path="/vendors" element={<Vendors />} />
             <Route path="/order-to-vendors" element={<OrderToVendors />} />
             <Route path="/dues" element={<Dues />} />
+            <Route path="/enquiries" element={<Enquiries />} />
             <Route path="/sheets" element={<Sheets />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

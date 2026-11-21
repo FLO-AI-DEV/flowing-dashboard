@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sheet, Sun, Truck, X } from "lucide-react";
+import { Building2, ClipboardList, MessageSquareText, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sheet, Sun, Truck, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFetchingReporter, useRefreshAll } from "../../api/hooks";
@@ -16,6 +16,7 @@ export const NAV = [
   { group: "Purchasing and accounts", items: [
     { to: "/order-to-vendors", label: "Order to vendors", icon: Truck },
     { to: "/dues", label: "Supplier dues", icon: IndianRupee },
+    { to: "/enquiries", label: "Supplier enquiries", icon: MessageSquareText },
   ] },
   { group: "Data", items: [
     { to: "/sheets", label: "Sheets", icon: Sheet },

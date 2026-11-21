@@ -25,6 +25,8 @@ def test_health():
     ("/api/vendors", {"kpis", "tables", "charts", "summary"}),
     ("/api/dues", {"kpis", "tables", "charts", "tab", "tabs"}),
     ("/api/order-to-vendors", {"kpis", "tables", "charts", "tab", "tabs"}),
+    ("/api/enquiries", {"sections", "options", "views", "tabs"}),
+    ("/api/enquiries?status=Unsolved&city=Surat&approval=Approved", {"sections"}),
     ("/api/sheets", {"sheets"}),
     ("/api/sheet?source=order_status&q=jaipur", {"table", "total", "header_row"}),
     ("/api/status", {"sources"}),

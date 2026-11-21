@@ -1,9 +1,10 @@
-"""Management overview across the three Flo-Wing sheets. Every number reuses the page calculations, so they match."""
+"""Management overview across the four Flo-Wing sheets. Every number reuses the page calculations, so they match."""
 from __future__ import annotations
 
 from ..core import fmt, inr_short
 from ..tables import notice
 from . import dues as dus
+from . import enquiry as enq
 from . import generic as gen
 from . import orders as ords
 
@@ -11,8 +12,9 @@ from . import orders as ords
 def overview_dashboard(sources: dict, months: list[str], today) -> dict:
     """sources: {"order_status": (df|None, err), "dues": (parsed|None, err), "order_to_vendors": (grid|None, err)}"""
     alerts, errors, sections = [], [], {}
-    for key, label in (("order_status", "Order Status"), ("dues", "Supplier Dues"), ("order_to_vendors", "Order to Vendors")):
-        if sources[key][1]:
+    for key, label in (("order_status", "Order Status"), ("dues", "Supplier Dues"), ("order_to_vendors", "Order to Vendors"),
+                       ("supplier_enquiry", "Supplier's Enquiry Sheet")):
+        if key in sources and sources[key][1]:
             errors.append(notice(f"{label} could not be loaded: {sources[key][1]}", "error"))
     month_options: list[str] = []
 
@@ -69,6 +71,23 @@ def overview_dashboard(sources: dict, months: list[str], today) -> dict:
                            "text": (" · ".join(f"{x['label'].title()}: {fmt(x['value']) if not ov['charts']['money'] else inr_short(x['value'])}"
                                                for x in st[:3]) or "Rows on the Order to vendors sheet.")})
             sections["otv"] = {"kpis": ov["kpis"], "charts": ov["charts"]}
+
+    q, _ = sources.get("supplier_enquiry", (None, None))
+    if q is not None:
+        en = enq.enquiry_dashboard(q, {}, today)
+        sec = en["sections"]
+        if "enquiries" in sec:
+            s = sec["enquiries"]["summary"]
+            old = s["oldest"]
+            pend = sec.get("city_po", {}).get("summary", {}).get("pending", 0)
+            alerts.append({"kind": "warning" if s["open"] else "success", "area": "enquiries",
+                           "title": f"{fmt(s['open'])} supplier enquir{'ies' if s['open'] != 1 else 'y'} pending",
+                           "text": f"{fmt(s['total'])} logged."
+                                   + (f" Oldest pending: {old['party']}, {old['days']} days." if old else "")
+                                   + (f" {fmt(pend)} suppliers still waiting for a PO." if pend else "")})
+            sections["enquiries"] = {"kpis": [x for x in sec["enquiries"]["kpis"]
+                                              if x["id"] in ("enquiries", "open", "unsolved", "solved_rate")],
+                                     "charts": {"open_by_handler": sec["enquiries"]["charts"]["open_by_handler"]}}
 
     if not alerts and not errors:
         alerts.append({"kind": "info", "area": "none", "title": "No data", "text": "There is no data for the selected months."})

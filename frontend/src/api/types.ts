@@ -138,6 +138,32 @@ export interface OtvData extends Envelope {
   rows_total: number;
 }
 
+export type EnquiryView = "enquiries" | "city_po" | "terms" | "inactive" | "issues";
+
+export interface EnquiryData extends Envelope {
+  options: Options;
+  notices: Notice[];
+  views: EnquiryView[];
+  tabs: Partial<Record<EnquiryView, string | null>>;
+  sections: {
+    enquiries?: {
+      kpis: Kpi[];
+      summary: { open: number; total: number; oldest: { party: string; days: number; about: string } | null };
+      tables: { open: TableData; all: TableData; handlers: TableData; suppliers: TableData };
+      charts: { status: Slice[]; topics: Slice[]; open_by_handler: Slice[]; monthly: SeriesChart };
+    };
+    city_po?: {
+      kpis: Kpi[];
+      summary: { pending: number };
+      tables: { cities: TableData; list: TableData };
+      charts: { pending_by_city: Slice[]; by_city: SeriesChart };
+    };
+    terms?: { kpis: Kpi[]; tables: { terms: TableData }; charts: { status: Slice[] } };
+    inactive?: { kpis: Kpi[]; tables: { inactive: TableData } };
+    issues?: { kpis: Kpi[]; tables: { issues: TableData } };
+  };
+}
+
 export interface SheetInfo {
   key: string;
   name: string;
@@ -178,6 +204,7 @@ export interface OverviewData extends Envelope {
     };
     dues?: { kpis: Kpi[]; title: string; notices: Notice[]; tables: { suppliers: TableData }; charts: { ageing: Slice[] } };
     otv?: { kpis: Kpi[]; charts: { by_status: Slice[]; by_vendor: Slice[]; money: boolean } };
+    enquiries?: { kpis: Kpi[]; charts: { open_by_handler: Slice[] } };
   };
 }
 

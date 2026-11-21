@@ -31,6 +31,18 @@ SHEET_REGISTRY: dict[str, dict] = {
         "id": "1IM7wW2ev7TC-Ud08dHOXWiMOESVSRI9LILS2TaAoIO4",
         "source_tabs": [],  # empty = the left-most tab; the page can pick another
     },
+    "supplier_enquiry": {
+        "name": "Supplier's Enquiry Sheet",
+        "id": "16-BtrzzzHdoQ7HZrMyCUkZxEQJ7YduoaHbmW_v1d9B0",
+        # one sheet, several lists: role -> tab names tried in order (matched ignoring case/spaces)
+        "tabs": {
+            "enquiries": ["Sheet1", "Vendor Enquiry Sheet", "Enquiries"],
+            "city_po": ["Supplier's Enquiry Sheet", "Suppliers Enquiry Sheet"],
+            "terms": ["Terms Approval"],
+            "inactive": ["Inactive25-26", "Inactive 25-26", "Inactive Suppliers"],
+            "issues": ["purchase issues"],
+        },
+    },
 }
 
 

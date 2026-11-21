@@ -1,4 +1,4 @@
-"""Built-in demo data shaped like the three Flo-Wing sheets (all names and figures are invented).
+"""Built-in demo data shaped like the four Flo-Wing sheets (all names and figures are invented).
 
 Used when no Google key is configured, so the dashboard can be tried without access to the real sheets.
 """
@@ -100,6 +100,59 @@ def _otv(today: date):
     return rows
 
 
+def _enquiry_tabs(today: date) -> dict:
+    """Supplier's Enquiry Sheet: enquiry log, city-wise pending POs, terms approval, inactive suppliers."""
+    rnd = random.Random(11)
+    parties = ["SHREE RAM TEXTILES", "KESAR ETHNIC", "MAHAVIR CREATIONS", "NAVKAR FASHION", "RIDDHI SIDDHI PRINTS",
+               "ANAND TEXTILE MILLS", "PADMAVATI FABRICS", "GANGOTRI CREATIONS", "SAKSHI TEXTILE", "VRINDA DESIGNS"]
+    about = ["2 pieces missing from last parcel", "GR received, 3 pieces defective", "Bill rate mismatch, debit note",
+             "PO pending for new design order", "Shoot photos not received", "LR copy needed for parcel",
+             "Dupatta to be sent separately", "Size set short by 4 pcs", "Payment ledger confirmation", ""]
+    handlers = ["nidhi", "kanchan", "gungun", "shaily"]
+    log = [["Vendor Enquiry Sheet"], ["S. NO", "DATE", "PARTY NAME", "ENQUIRY ABOUT", "CONCERNED PERSON", "Follow Up",
+                                      "REMARKS", "STATUS", "FOLLOW 1", "FOLLOW UP 2", "FOLLOW UP"]]
+    for i in range(60):
+        d = today - timedelta(days=rnd.randint(1, 150))
+        age = (today - d).days
+        st = rnd.choices(["SOLVED", "UNSOLVED", "In Process", ""], [5 if age > 30 else 2, 2, 2, 1])[0]
+        log.append([str(i + 1), d.strftime("%d/%m/%Y"), rnd.choice(parties), rnd.choice(about),
+                    rnd.choice(["Rakesh ji", "Mehul bhai", "Sunil", ""]), rnd.choice(handlers),
+                    f"98{rnd.randint(10000000, 99999999)}" if rnd.random() < .5 else "", st,
+                    rnd.choice(["called, will send by Monday", "reminder sent", ""]), "", ""])
+    cities = ["KOLKATA", "MUMBAI", "SURAT", "AHMEDABAD", "JAIPUR"]
+    head = []
+    for c in cities:
+        head += ["", f"{c} PO", "ORDER DATE", "STATUS"]
+    city = [head[1:], [""] * len(head)]
+    for r in range(8):
+        row = []
+        for c in cities:
+            if rnd.random() < .75:
+                d = today - timedelta(days=rnd.randint(3, 80))
+                txt = rnd.choice([d.strftime("%d/%m/%Y") + " order", f"{d.day} {d.strftime('%B').lower()} order",
+                                  d.strftime("%d-%m-%Y")])
+                row += [str(r + 1), rnd.choice(parties).title(), txt, rnd.choice(["DONE", "", ""])]
+            else:
+                row += ["", "", "", ""]
+        city.append(row[1:])
+    terms = [["Date", "Supplier Details", "", "", "Payment Terms", "", "", "", "", "Approval ", "", "", "Software "],
+             ["", "Supplier", "Supplier Code", "Contact Person ", "Payment Days", "Discount ", "Other Special Terms ",
+              "Confirmed by ", "Confirmed on", "Approval Status", "Approved By", "Date/Time", "Entry by", "Entry Date ",
+              "Entry Checked"]]
+    for i, ptn in enumerate(parties[:8]):
+        d = today - timedelta(days=rnd.randint(2, 90))
+        st = "Approved" if i < 5 else ("PENDING" if i < 7 else "")
+        terms.append([d.strftime("%d/%m/%Y"), f"{ptn} (MSME) {rnd.choice(cities)}", str(610 + i), "",
+                      rnd.choice(["30", "45", "15"]) if i != 7 else "", rnd.choice(["5%", "12%", "3+3%"]) if i != 6 else "",
+                      "", rnd.choice(["GUNGUN", "SHAILY"]), d.strftime("%d %B %Y"), st, "SHAILY" if st == "Approved" else "",
+                      "", "Amit" if i < 6 else "", d.strftime("%d/%m/%Y") if i < 6 else "", ""])
+    inactive = [["INACTIVE SUPPLIERS IN 2025-2026"], ["Party", "Qty"]] + \
+        [[f"{n} TEX ({c.title()})", str(rnd.randint(20, 900))] for n, c in
+         zip(["OM", "JAI MATA DI", "SHUBH", "RANG", "KALA", "LAXMI"], cities + ["SURAT"])]
+    return {"Terms Approval": terms, "Sheet1": log, "Supplier's Enquiry Sheet ": city, "Inactive25-26": inactive,
+            "purchase issues ": [["Date", "Supplier", "Issue", "Design no.", "Bill No."]]}
+
+
 class DemoSheetSource:
     name = "demo"
 
@@ -117,6 +170,7 @@ class DemoSheetSource:
                                                     "PO Master ": _po_master(today)},
             SHEET_REGISTRY["dues"]["id"]: {**due_tabs, "Updated Sheet ": _terms()},
             SHEET_REGISTRY["order_to_vendors"]["id"]: {"Order to vendors": _otv(today)},
+            SHEET_REGISTRY["supplier_enquiry"]["id"]: _enquiry_tabs(today),
         }
 
     def list_tabs(self, sheet_id: str):

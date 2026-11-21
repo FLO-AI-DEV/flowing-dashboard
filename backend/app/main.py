@@ -27,6 +27,7 @@ from .assistant.memory import ChatMemory
 from .config import SHEET_REGISTRY, get_settings
 from .core import FY_LABEL, FY_MONTH_LABELS, MONTHNO_TO_LABEL, now_ist, today_ist
 from .dashboards import dues as dus
+from .dashboards import enquiry as enq
 from .dashboards import generic as gen
 from .dashboards import orders as ords
 from .dashboards import overview as ovw
@@ -218,6 +219,20 @@ def order_to_vendors(tab: str = "", vendor: Multi = [], status: Multi = []):
     return _envelope(body, ds)
 
 
+ENQUIRY_KEYS = ("month", "status", "handler", "topic", "party", "city", "po_status", "approval")
+
+
+@app.get("/api/enquiries", dependencies=[Depends(require_auth)])
+def enquiries(month: Multi = [], status: Multi = [], handler: Multi = [], topic: Multi = [], party: Multi = [],
+              city: Multi = [], po_status: Multi = [], approval: Multi = []):
+    store = get_store()
+    ds = store.dataset("supplier_enquiry")
+    f = dict(zip(ENQUIRY_KEYS, map(_clean, (month, status, handler, topic, party, city, po_status, approval))))
+    body = enq.enquiry_dashboard(_need(ds), f, today_ist())
+    body["tabs"] = {r: t for r, t in zip(SHEET_REGISTRY["supplier_enquiry"]["tabs"], ds.tabs)}
+    return _envelope(body, ds)
+
+
 @app.get("/api/sheets", dependencies=[Depends(require_auth)])
 def sheets():
     store = get_store()
@@ -226,7 +241,7 @@ def sheets():
         cfg = SHEET_REGISTRY[k]
         try:
             tabs = store.all_tabs(k)
-            default = store.source_tabs(k)[0]
+            default = next((t for t in store.source_tabs(k) if t), "")
             err = None
         except Exception as e:  # noqa: BLE001
             tabs, default, err = [], "", str(e)
@@ -253,7 +268,7 @@ def sheet(source: str, tab: str = "", q: str = Query(default="", max_length=100)
 
 # ------------------------------------------------------------------------------------------------ assistant
 _ASSISTANT_PAGES = {"overview": overview, "orders": orders, "vendors": vendors, "dues": dues,
-                    "order-to-vendors": order_to_vendors}
+                    "order-to-vendors": order_to_vendors, "enquiries": enquiries}
 
 
 def _assistant_fetch(page: str, filters: dict) -> dict:

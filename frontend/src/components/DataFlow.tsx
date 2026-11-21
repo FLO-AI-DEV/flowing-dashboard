@@ -6,11 +6,12 @@ import { ago } from "../lib/format";
 import { useLive } from "../lib/live";
 import { prefersReducedMotion, useWidth } from "./charts/common";
 
-const ORDER = ["order_status", "dues", "order_to_vendors"];
+const ORDER = ["order_status", "dues", "order_to_vendors", "supplier_enquiry"];
 const LABEL: Record<string, string> = {
   order_status: "Order status",
   dues: "Supplier dues",
   order_to_vendors: "Order to vendors",
+  supplier_enquiry: "Supplier enquiries",
 };
 
 export interface FlowOut {
@@ -133,7 +134,7 @@ export function DataFlow({ sources, outputs, now }: { sources: Record<string, So
   return (
     <div className="flow" ref={wrap} data-reveal>
       {width > 0 && (
-        <svg ref={svg} viewBox={`0 0 ${L.W} ${L.H}`} width={L.W} height={L.H} role="img" aria-label="Live data flow from the three Google Sheets into the dashboard">
+        <svg ref={svg} viewBox={`0 0 ${L.W} ${L.H}`} width={L.W} height={L.H} role="img" aria-label="Live data flow from the Google Sheets into the dashboard">
           {L.src.map((s, i) => {
             const st = sources?.[s.k];
             const bad = !!st && !st.ok && !st.stale;

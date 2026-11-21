@@ -40,6 +40,9 @@ About this dashboard (Flo-Wing, a women's ethnic wear wholesaler, Jaipur):
 - Vendors page: per-vendor scorecard, on-time delivery % and delay.
 - Supplier dues page: money Flo-Wing has to pay suppliers ("Total net payable", "Overdue", "Due in next 7 days").
 - Order to vendors page: rows of a separate order sheet.
+- Supplier enquiries page: supplier enquiries / complaints ("Pending enquiries", "Unsolved enquiries", "Solved rate"),
+  who handles them (handler: nidhi, kanchan, gungun, shaily), suppliers "Waiting for PO" by city, "Approval pending"
+  for payment terms, "Inactive suppliers".
 Glossary: paise / rupaye / value / amount / kitne ka = rupee figure; pcs / pieces / maal = quantity; baki / bacha /
 aana hai / nahi aaya = pending; dena / payment / bakaya / dues = payable (Supplier dues); der / late = delay;
 time pe = on time; sabse zyada = top; sabse kam = bottom; mahine wise = trend; pichhle mahine = last month.

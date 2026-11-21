@@ -76,6 +76,13 @@ CASES = [
     ("what does the dues page show", "Supplier dues"),
     ("hi", "Flo-Wing Assistant"),
     ("pending in one word", "**₹"),
+    # supplier enquiry sheet
+    ("unsolved enquiries", "Unsolved enquiries is"),
+    ("kitni enquiry pending hai gungun ke paas", "Pending enquiries for Gungun"),
+    ("how many suppliers waiting for PO in surat", "Waiting for PO for **Surat"),
+    ("terms approval pending", "Approval pending is"),
+    ("inactive suppliers", "Inactive suppliers is"),
+    ("enquiries of mahavir creations", "MAHAVIR CREATIONS"),
 ]
 
 

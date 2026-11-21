@@ -38,33 +38,45 @@ PAGES: dict[str, Page] = {p.key: p for p in [
          "Rows of the Order to vendors sheet with totals and a breakdown by status and vendor (columns are found by "
          "name).",
          {"vendor": "vendor"}, 4),
+    Page("enquiries", "Supplier enquiries", "/enquiries",
+         ("supplier enquiry", "supplier enquiries", "enquiry", "enquiries", "inquiry", "complaints", "follow up",
+          "terms approval", "inactive suppliers", "pending po by city"),
+         "The Supplier's Enquiry Sheet: supplier enquiries and their status (solved / unsolved / in process), who is "
+         "handling each, how long open ones have waited, pending POs city by city, payment-terms approvals and "
+         "inactive suppliers.",
+         {"month": "month", "party": "party", "city": "city", "handler": "handler"}, 5),
     Page("overview", "Overview", "/", ("overview", "home page", "summary page", "main page"),
-         "A summary of the three sheets: overdue PO lines, pending orders, supplier dues and vendor orders, plus the "
+         "A summary of the four sheets: overdue PO lines, pending orders, supplier dues, vendor orders and open supplier enquiries, plus the "
          "alerts that need attention.",
          {"month": "month"}, 8),
 ]}
 
 # Option lists in the API -> entity type. Other option lists (timing, status...) are not used as names.
 OPTION_TYPES = {"vendor": "vendor", "supplier": "vendor", "category": "category", "department": "department",
-                "city": "city", "agency": "agency", "month": "month"}
+                "city": "city", "agency": "agency", "month": "month",
+                "party": "party", "handler": "handler"}
 
 # First column of a table -> what each row is.
 ROW_TYPES = {"vendor": "vendor", "supplier": "vendor", "month": "month", "category": "category",
-             "department": "department", "city": "city", "agency": "agency", "po no.": "po", "po no": "po"}
+             "department": "department", "city": "city", "agency": "agency", "po no.": "po", "po no": "po",
+             "handled by": "handler"}
 
 DIMENSION_WORDS = {"vendor": "vendor", "month": "month", "category": "category", "department": "department",
-                   "city": "city", "agency": "agency", "po": "po"}
+                   "city": "city", "agency": "agency", "po": "po",
+                   "handler": "handler"}
 
 # Plural words that ask about every row of a kind ("on-time rate of vendors", "har vendor ka pending").
 DIMENSION_PLURALS = {"vendors": "vendor", "suppliers": "vendor", "parties": "vendor", "venders": "vendor",
                      "categories": "category", "items": "category", "products": "category",
-                     "departments": "department", "cities": "city", "agencies": "agency"}
+                     "departments": "department", "cities": "city", "agencies": "agency",
+                     "handlers": "handler"}
 
 # "Best" / "worst" with no measure named: what makes a vendor good (higher is better).
 QUALITY = {"vendor": "on-time rate"}
 
 TYPE_NAMES = {"vendor": "vendor", "category": "category", "department": "department", "city": "city",
-              "agency": "agency", "month": "month", "po": "PO"}
+              "agency": "agency", "month": "month", "po": "PO",
+              "handler": "person", "party": "supplier"}
 PLURALS = {"category": "categories", "city": "cities", "agency": "agencies", "PO": "POs"}
 
 # The page that "owns" a kind of row, used when a ranking names no measure ("top vendor").
@@ -88,7 +100,7 @@ FEATURES = [
      "Pages are in the sidebar on the left. On a PC the sidebar folds into an icon rail with the button in the top "
      "bar (or press **[**). On a phone, open it with the ☰ menu button."),
     ({"tab", "tabs", "sheet", "sheets"},
-     "The **Sheets** page shows any tab of the three sheets live, with search. On **Supplier dues** pick the dues "
+     "The **Sheets** page shows any tab of the four sheets live, with search. On **Supplier dues** pick the dues "
      "list (tab) at the top; on **Order to vendors** pick the tab the same way."),
     ({"login", "passcode", "password", "signin", "sign"},
      "When sign-in is switched on, the dashboard asks for the team passcode once per device."),

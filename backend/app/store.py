@@ -18,10 +18,11 @@ from datetime import datetime, timezone
 from .config import SHEET_REGISTRY, Settings
 from .core import find_tab, pick_default_tab, today_ist
 from .dashboards import dues as dus
+from .dashboards import enquiry as enq
 from .dashboards import orders as ords
 from .sources.google import SheetAccessError
 
-KINDS = ["order_status", "dues", "order_to_vendors"]
+KINDS = ["order_status", "dues", "order_to_vendors", "supplier_enquiry"]
 
 
 def _now() -> float:
@@ -138,6 +139,8 @@ class DataStore:
         if not meta_:
             raise SheetAccessError("No tabs found on the sheet.")
         titles = [t for t, _ in meta_]
+        if "tabs" in cfg and not tab:       # multi-list sheet: one tab per role, missing roles -> None
+            return [next((t for t in (find_tab(titles, n) for n in names) if t), None) for names in cfg["tabs"].values()]
         if tab:
             chosen = find_tab(titles, tab)
             if not chosen:
@@ -152,7 +155,9 @@ class DataStore:
     def _entries(self, kind, tab=None) -> tuple[list, list]:
         sid = SHEET_REGISTRY[kind]["id"]
         tabs = self.source_tabs(kind, tab)
-        entries = list(self._pool.map(lambda t: self.grid(sid, t), [t for t in tabs if t]))
+        if not any(tabs):
+            raise SheetAccessError(f"None of the expected tabs were found on {SHEET_REGISTRY[kind]['name']}.")
+        entries = list(self._pool.map(lambda t: self.grid(sid, t) if t else None, tabs))
         return tabs, entries
 
     def _parse(self, kind, tabs, entries):
@@ -162,12 +167,16 @@ class DataStore:
                 raise SheetAccessError(err)
             return d
         if kind == "dues":
-            p, err = dus.parse_dues(entries[0].value, entries[1].value if len(entries) > 1 else None)
+            p, err = dus.parse_dues(entries[0].value, entries[1].value if len(entries) > 1 and entries[1] else None)
             if err:
                 raise SheetAccessError(err)
             return p
         if kind == "order_to_vendors":
             return entries[0].value
+        if kind == "supplier_enquiry":
+            roles = list(SHEET_REGISTRY[kind]["tabs"].keys())
+            grids = {r: (e.value if e else None) for r, e in zip(roles, entries)}
+            return enq.parse_enquiry_sheet(grids, today_ist())
         raise KeyError(kind)
 
     def dataset(self, kind, tab: str | None = None) -> Dataset:
@@ -177,10 +186,12 @@ class DataStore:
             return Dataset(kind, None, None, "", error=str(e))
         except Exception as e:
             return Dataset(kind, None, None, "", error=f"{type(e).__name__}: {e}")
-        version = _digest([e.version for e in entries] + ([str(today_ist().date())] if kind == "order_status" else []))
-        fetched = min(e.fetched_at for e in entries)
-        stale_err = next((e.error for e in entries if e.error), None)
-        key = (kind, tabs[0])
+        dated = kind in ("order_status", "supplier_enquiry")     # ages depend on today's date
+        version = _digest([e.version if e else "-" for e in entries] + ([str(today_ist().date())] if dated else []))
+        got = [e for e in entries if e]
+        fetched = min(e.fetched_at for e in got)
+        stale_err = next((e.error for e in got if e.error), None)
+        key = (kind, tabs[0] if kind != "supplier_enquiry" else "*")
         with self._parsed_lock:
             hit = self._parsed.get(key)
         if hit and hit[0] == version:

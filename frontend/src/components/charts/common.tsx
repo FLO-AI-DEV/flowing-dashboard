@@ -6,11 +6,11 @@ import { axisLabel } from "../../lib/format";
    Blue = the thing that went right / main series, navy = the reference (ordered, target, in production),
    red = what needs attention (pending, remaining, rejected, overdue), pale/grey = the rest. */
 const SEMANTIC: [RegExp, string][] = [
-  [/^(received|approved|achieved|new|rcvd|cumulative achieved|achieved \(new\)|on time)/i, "var(--accent)"],
-  [/^(pending|remaining|rejected|overdue|delayed|overdue \(pending\))/i, "var(--neg)"],
-  [/^(in production|under production|ordered|total|target|repeat|monthly target|cumulative target|fabric issue)/i, "var(--series-ref)"],
+  [/^(received|approved|achieved|solved|po done|po issued|new|rcvd|cumulative achieved|achieved \(new\)|on time)/i, "var(--accent)"],
+  [/^(pending|remaining|rejected|overdue|delayed|unsolved|still pending|po pending|waiting|overdue \(pending\))/i, "var(--neg)"],
+  [/^(in production|under production|ordered|total|enquiries|target|repeat|monthly target|cumulative target|fabric issue)/i, "var(--series-ref)"],
   [/^(on hold|open|monthly incoming|in process)/i, "var(--series-pale)"],
-  [/^(other|no date|cancelled)/i, "var(--series-grey)"],
+  [/^(other|no date|cancelled|no status|not filled|\(not written\))/i, "var(--series-grey)"],
 ];
 const RAMP = ["var(--accent)", "var(--series-ref)", "var(--series-pale)", "var(--series-grey)"];
 

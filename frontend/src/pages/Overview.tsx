@@ -20,8 +20,9 @@ const AREA_LINK: Record<string, string> = {
   orders: "/orders",
   dues: "/dues",
   otv: "/order-to-vendors",
+  enquiries: "/enquiries",
 };
-const AREA_NAME: Record<string, string> = { overdue: "Delivery", orders: "Orders", dues: "Supplier dues", otv: "Order to vendors", none: "Data" };
+const AREA_NAME: Record<string, string> = { overdue: "Delivery", orders: "Orders", dues: "Supplier dues", otv: "Order to vendors", enquiries: "Supplier enquiries", none: "Data" };
 const SEVERITY: Record<string, number> = { error: 0, warning: 1, info: 2, success: 3 };
 
 function AlertCard({ a }: { a: Alert }) {
@@ -179,6 +180,25 @@ export default function Overview() {
                       )}
                     </div>
                   )}
+                </Section>
+              )}
+
+              {s.enquiries && (
+                <Section title="Supplier enquiries" sub="Supplier's Enquiry Sheet" right={<Link className="btn sm" to="/enquiries">Open enquiries</Link>}>
+                  <div className="grid">
+                    <div className="span-8">
+                      <KpiStrip kpis={s.enquiries.kpis} cols={Math.min(4, s.enquiries.kpis.length)} lead={["open"]} />
+                    </div>
+                    <div className="span-4">
+                      <Panel title="Pending, by who is following up" sub="Enquiries">
+                        {s.enquiries.charts.open_by_handler.length ? (
+                          <BarList items={s.enquiries.charts.open_by_handler} unit="enquiries" tone="neg" label="Pending enquiries per person" max={6} />
+                        ) : (
+                          <div className="state">No enquiry is pending.</div>
+                        )}
+                      </Panel>
+                    </div>
+                  </div>
                 </Section>
               )}
             </>

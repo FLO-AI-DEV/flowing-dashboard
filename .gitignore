@@ -28,3 +28,4 @@ backend/chat_questions.log
 .idea/
 .DS_Store
 Thumbs.db
+*.tsbuildinfo
