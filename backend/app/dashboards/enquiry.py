@@ -271,7 +271,7 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
         oldest = opened.sort_values("age", ascending=False).head(1)
         by_handler = []
         for hname, g in x.groupby("handler"):
-            by_handler.append({"Handled by": hname, "Enquiries": len(g), "Pending": int(g["open"].sum()),
+            by_handler.append({"Handled by": hname, "Enquiries": len(g), "Pending enquiries": int(g["open"].sum()),
                                "Unsolved": int((g["status"] == "Unsolved").sum()),
                                "In process": int((g["status"] == "In process").sum()),
                                "Solved": int((g["status"] == "Solved").sum()),
@@ -279,14 +279,14 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
                                "Oldest pending (days)": float(g["age"].max()) if g["age"].notna().any() else 0.0})
         bh = pd.DataFrame(by_handler)
         if not bh.empty:
-            bh = bh.sort_values(["Pending", "Enquiries"], ascending=False)
-            tot = {"Handled by": "TOTAL", "Enquiries": len(x), "Pending": int(x["open"].sum()),
+            bh = bh.sort_values(["Pending enquiries", "Enquiries"], ascending=False)
+            tot = {"Handled by": "TOTAL", "Enquiries": len(x), "Pending enquiries": int(x["open"].sum()),
                    "Unsolved": int((x["status"] == "Unsolved").sum()), "In process": int((x["status"] == "In process").sum()),
                    "Solved": solved, "Solved %": rate,
                    "Oldest pending (days)": float(x["age"].max()) if x["age"].notna().any() else 0.0}
             bh = pd.concat([bh, pd.DataFrame([tot])], ignore_index=True)
-        by_party = x.groupby("party_key").agg(Enquiries=("party", "size"), Pending=("open", "sum")).reset_index()
-        by_party = by_party.rename(columns={"party_key": "Supplier"}).sort_values(["Pending", "Enquiries"], ascending=False)
+        by_party = x.groupby("party_key").agg(Enquiries=("party", "size"), **{"Pending enquiries": ("open", "sum")}).reset_index()
+        by_party = by_party.rename(columns={"party_key": "Supplier"}).sort_values(["Pending enquiries", "Enquiries"], ascending=False)
         mm = x[x["month"] != "(NO DATE)"].groupby("month").agg(total=("party", "size"), open=("open", "sum"))
         mm = mm.reindex(sorted(mm.index, key=month_sort_key))
         open_tbl = opened.sort_values("age", ascending=False, na_position="last")
@@ -312,9 +312,9 @@ def enquiry_dashboard(p: dict, f: dict, today: pd.Timestamp) -> dict:
                 "open": table(cols(open_tbl), {"Date": "date", "Days pending": "int"}, key_col="Days pending", sort=False),
                 "all": table(cols(x.sort_values("date", ascending=False, na_position="last")),
                              {"Date": "date", "Days pending": "int"}, sort=False),
-                "handlers": table(bh, {"Solved %": "pct", "Oldest pending (days)": "int"}, key_col="Pending", sort=False,
+                "handlers": table(bh, {"Solved %": "pct", "Oldest pending (days)": "int"}, key_col="Pending enquiries", sort=False,
                                   rates={"Solved %": RATE_APPROVAL}),
-                "suppliers": table(by_party.head(200), key_col="Pending", sort=False),
+                "suppliers": table(by_party.head(200), key_col="Pending enquiries", sort=False),
             },
             "charts": {
                 "status": [{"label": s, "value": float((x["status"] == s).sum())} for s in STATUS_ORDER

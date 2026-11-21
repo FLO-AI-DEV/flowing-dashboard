@@ -331,6 +331,13 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
             q.entities.append(ents[0])
             used[j] = True
             continue
+        # one supplier known to both the enquiry sheet ("party") and the order/dues sheets ("vendor"): keep both,
+        # the page decides below which spelling is used
+        if ents and {e.type for e in ents} <= {"vendor", "party"} and \
+                all(len({e.key for e in ents if e.type == t}) == 1 for t in {e.type for e in ents}):
+            q.entities.extend({e.type: e for e in ents}.values())
+            used[j] = True
+            continue
         best, score = None, 0.0
         for key, ents in vocab.by_key.items():
             if " " in key or ents[0].type == "po" or abs(len(key) - len(w)) > 2 or key[0] != w[0]:
@@ -361,6 +368,9 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
     if re.search(r"\b(enquir\w*|inquir\w*|complain\w*|unsolved|solved|in process|follow ?ups?|handl\w*|"
                  r"terms? approv\w*|approv\w*|inactive|(kolkata|mumbai|surat|ahmedabad|jaipur) po)\b", t):
         q.pages = ["enquiries"] + [p for p in q.pages if p != "enquiries"]
+    # Flo-Wing: the separate "Order to vendors" sheet
+    if re.search(r"\b(orders? to vendors?|vendor orders?|otv)\b", t):
+        q.pages = ["order-to-vendors"] + [p for p in q.pages if p != "order-to-vendors"]
     # Flo-Wing: money owed to suppliers lives on the dues page; PO lines on the orders page
     if re.search(r"\b(dues?|payables?|payments?|pay|bills?|net payable|dena|dene|bhugtan|ageing|aging|agency)\b", t) \
             and "dues" not in q.pages:
@@ -384,7 +394,8 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
             if hits:
                 e = min(hits, key=lambda c: len(c.key))
         swapped.append(e)
-    q.entities = swapped
+    seen = set()
+    q.entities = [e for e in swapped if not ((e.type, e.key) in seen or seen.add((e.type, e.key)))]
 
     # intent --------------------------------------------------------------------
     same_type = {}

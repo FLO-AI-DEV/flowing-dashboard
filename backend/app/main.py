@@ -10,7 +10,10 @@ import hashlib
 import hmac
 import json
 import os
+import re
+import threading
 import time
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from typing import Annotated
 
@@ -21,9 +24,12 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .assistant import Assistant
+from .assistant import glossary
 from .assistant.analyst import GeminiAnalyst, build_facts, wants_analysis
+from .assistant.datatools import DataTools
+from .assistant.fmt import value as fmt_value
 from .assistant.gemini import GeminiInterpreter
-from .assistant.memory import ChatMemory
+from .assistant.memory import AnswerCache, ChatMemory
 from .config import SHEET_REGISTRY, get_settings
 from .core import FY_LABEL, FY_MONTH_LABELS, MONTHNO_TO_LABEL, now_ist, today_ist
 from .dashboards import dues as dus
@@ -48,7 +54,16 @@ def get_store() -> DataStore:
     return DataStore(source, settings)
 
 
-app = FastAPI(title="Flo-Wing Operations API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+@asynccontextmanager
+async def lifespan(_app):
+    # read every sheet once at start (in the background) so the first page and the first question are fast
+    if os.getenv("WARM_UP", "on").strip().lower() not in ("off", "0", "false", "no"):
+        threading.Thread(target=_warm_up, daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Flo-Wing Operations API", version=API_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json",
+              lifespan=lifespan)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 _origins = get_settings().cors_origins
 if _origins:
@@ -285,8 +300,13 @@ def get_assistant() -> Assistant:
 
 
 @lru_cache(maxsize=1)
+def get_datatools() -> DataTools:
+    return DataTools(get_store())
+
+
+@lru_cache(maxsize=1)
 def get_analyst() -> GeminiAnalyst | None:
-    return GeminiAnalyst.from_env()
+    return GeminiAnalyst.from_env(tools=get_datatools())
 
 
 def _assistant_mode() -> str:
@@ -297,8 +317,9 @@ def _assistant_mode() -> str:
     return "rules"
 
 
-# Chat memory lives in this process only: it resets when the API restarts.
+# Chat memory and the answer cache live in this process only: they reset when the API restarts.
 CHAT_MEMORY = ChatMemory()
+ANSWER_CACHE = AnswerCache()
 
 
 class ChatIn(BaseModel):
@@ -328,28 +349,110 @@ def _analyst_reply(question: str, history: list) -> dict | None:
 
 
 SHEET_PAGES = {"orders": ("/orders", "Orders"), "vendors": ("/vendors", "Vendors"), "dues": ("/dues", "Supplier dues"),
-               "order-to-vendors": ("/order-to-vendors", "Order to vendors"), "overview": ("/", "Overview")}
+               "order-to-vendors": ("/order-to-vendors", "Order to vendors"), "overview": ("/", "Overview"),
+               "enquiries": ("/enquiries", "Supplier enquiries")}
 
 
 @app.post("/api/chat", dependencies=[Depends(require_auth)])
 def chat(body: ChatIn):
-    """Flo-Wing Assistant: answers a question from the dashboard's own numbers (read-only).
+    """Flo-Wing Assistant: answers a question from the dashboard's own data (read-only).
 
-    Order: calculations / "why" questions go to the Gemini analyst (when a key is set); everything else is answered
-    by the rules first, and the analyst only gets what the rules could not place. The chat's earlier turns
-    (session_id) are kept in memory so follow-ups work.
+    Order (fastest first):
+      1. meaning of a word ("PO kya hai")          -> glossary, instant
+      2. the same question asked before            -> answer cache (same data version), instant
+      3. calculations, look-ups of particular rows -> Gemini analyst with exact data tools (when a key is set)
+      4. everything else                           -> the rules; what they can't place goes to the analyst
+    The chat's earlier turns (session_id) are kept in memory so follow-ups work.
     """
     history = CHAT_MEMORY.history(body.session_id)
-    out = None
-    if wants_analysis(body.message):
-        out = _analyst_reply(body.message, history)
+    out = glossary.answer(body.message)
+    key = None
+    if out is None and not history:
+        try:
+            key = AnswerCache.key(body.message, body.context, get_datatools().version())
+            out = ANSWER_CACHE.get(key)
+        except Exception:  # noqa: BLE001 - the cache is only a shortcut
+            key = None
     if out is None:
-        out = get_assistant().answer(body.message, body.context)
-        if not out.get("understood"):
-            out = _analyst_reply(body.message, history) or out
+        out = _answer(body, history)
+        if key is not None and out.get("understood"):
+            ANSWER_CACHE.put(key, out)
     CHAT_MEMORY.add(body.session_id, body.message, out.get("answer", ""))
     _log_question(body.message, out)
     return out
+
+
+_HELLO = re.compile(r"^\s*(help|madad|menu|what can you do|kya kar sakte ho)\s*[?!.]*\s*$", re.I)
+_ATTENTION = re.compile(r"\b(overview|needs? attention|attention|urgent|alerts?|what should i (check|look at)|"
+                        r"kya dekhna|kya urgent|aaj ka summary|today'?s summary|summary of (everything|all)|"
+                        r"sab ka summary|status report|kya chal raha)\b", re.I)
+
+
+def _quick(message: str) -> dict | None:
+    """Greetings and 'what needs attention' are answered without parsing (instant)."""
+    if _HELLO.match(message):
+        out = get_assistant().answer("what can you do", None)
+        out["answer"] = out["answer"] + "\n\nYou can also ask what any word means, e.g. \"PO kya hai\" or \"what is ageing\"."
+        return out
+    if _ATTENTION.search(message) and len(message.split()) <= 8:
+        data = overview(month=[])
+        items = [f"• **{a['title']}**: {a['text']}" for a in data.get("alerts", [])]
+        items += [f"• ⚠ {e.get('text', '') if isinstance(e, dict) else e}" for e in data.get("errors", [])]
+        if not items:
+            return None
+        return {"answer": "**What needs attention now:**\n" + "\n".join(items), "page": "/", "page_label": "Overview",
+                "context": {}, "understood": True, "intent": "overview", "engine": "rules"}
+    return None
+
+
+_OTV = re.compile(r"\b(orders? to vendors?|vendor orders?|otv)\b", re.I)
+
+
+def _otv_summary() -> dict | None:
+    """Order to vendors in one answer: its headline figures and the split by status."""
+    try:
+        d = order_to_vendors()
+    except Exception:  # noqa: BLE001
+        return None
+    if not d.get("kpis"):
+        return None
+    head = ", ".join(f"{k['label'].lower()} **{fmt_value(k.get('value'), k.get('format'), k.get('unit') or '')}**"
+                     for k in d["kpis"])
+    lines = [f"**Order to vendors**: {head}."]
+    money = d.get("charts", {}).get("money")
+    split = d.get("charts", {}).get("by_status") or []
+    if split:
+        lines.append("By status: " + "; ".join(
+            f"{x['label']} {fmt_value(x['value'], 'inr' if money else 'int')}" for x in split[:8]) + ".")
+    return {"answer": "\n".join(lines), "page": "/order-to-vendors", "page_label": "Order to vendors", "context": {},
+            "understood": True, "intent": "summary", "engine": "rules"}
+
+
+def _answer(body: ChatIn, history: list) -> dict:
+    quick = _quick(body.message)
+    if quick is not None:
+        return quick
+    follow_up = bool(history) and len(body.message.split()) <= 4      # "and received?", "uska total?"
+    if get_analyst() is not None and (wants_analysis(body.message) or follow_up):
+        out = _analyst_reply(body.message, history)
+        if out is not None:
+            return out
+    if _OTV.search(body.message):          # the Order to vendors sheet has few figures: one summary covers them
+        return _analyst_reply(body.message, history) or _otv_summary() or get_assistant().answer(body.message, body.context)
+    rules = get_assistant().answer(body.message, body.context)
+    if not rules.get("understood"):
+        return _analyst_reply(body.message, history) or rules
+    return rules
+
+
+def _warm_up():
+    """Reads every sheet and builds the lookup tables once at start, so the first question is fast."""
+    try:
+        get_store().datasets(KINDS)
+        get_datatools().tables()
+        get_assistant().answer("total pending", None)
+    except Exception:  # noqa: BLE001 - warming up is best effort
+        pass
 
 
 @app.post("/api/chat/reset", dependencies=[Depends(require_auth)])

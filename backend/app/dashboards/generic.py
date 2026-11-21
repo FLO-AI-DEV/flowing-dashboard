@@ -9,7 +9,7 @@ import re
 
 import pandas as pd
 
-from ..core import clean_text, fmt, is_number_text, norm_key, num, parse_dates
+from ..core import clean_text, is_number_text, norm_key, num, parse_dates
 from ..tables import kpi, notice, table
 
 

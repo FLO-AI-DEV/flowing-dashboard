@@ -10,7 +10,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..core import clean_text, fmt, inr_short, norm_key, num, parse_dates
+from ..core import clean_text, fmt, norm_key, num, parse_dates
 from ..tables import kpi, notice, table, with_total
 
 AGEING = ["Not due", "1-30 days", "31-60 days", "61-90 days", "90+ days"]

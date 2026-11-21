@@ -47,7 +47,18 @@ function sessionId(): string {
     return newSessionId();
   }
 }
-const WELCOME = "Hi! I'm **Flo-Wing Assistant**. Ask me anything about this dashboard: any number, name or month, in English or Hinglish.";
+const WELCOME = "Hi! I'm **Flo-Wing Assistant**. Ask me anything about this dashboard: any number, name, PO, enquiry or month, or what a word means, in English or Hinglish.";
+
+/** Starter questions for an empty chat, by page. */
+const STARTERS: Record<string, string[]> = {
+  "/": ["What needs attention?", "Total pending", "PO kya hai?"],
+  "/orders": ["Which vendor has the most overdue?", "Pending in July", "What does overdue mean?"],
+  "/vendors": ["Worst vendor on time", "Top 5 vendors by pending", "What is RCVD %?"],
+  "/dues": ["Payment due this week", "Agency wise dues", "What is ageing?"],
+  "/order-to-vendors": ["Order to vendors by status", "Which vendor has the most orders?"],
+  "/enquiries": ["Kitni enquiry pending hai gungun ke paas?", "Oldest pending enquiry", "GR ka matlab?"],
+  "/sheets": ["What is in the enquiry sheet?", "Total dues"],
+};
 
 function load(): { msgs: Msg[]; ctx: Record<string, unknown> | null } {
   try {
@@ -213,6 +224,15 @@ export function Assistant() {
             <div className="fa-msg bot">
               <RichText text={WELCOME} />
             </div>
+            {!msgs.length && (
+              <div className="fa-chips" aria-label="Example questions">
+                {(STARTERS[loc.pathname] ?? STARTERS["/"]).map((q) => (
+                  <button key={q} type="button" className="fa-chip" onClick={() => send(q)} disabled={busy}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            )}
             {msgs.map((m) => (
               <div key={m.id} className={`fa-msg ${m.role}${m.error ? " error" : ""}`}>
                 {m.role === "bot" ? <RichText text={m.text} /> : <p>{m.text}</p>}

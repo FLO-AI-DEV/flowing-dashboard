@@ -150,7 +150,9 @@ def _enquiry_tabs(today: date) -> dict:
         [[f"{n} TEX ({c.title()})", str(rnd.randint(20, 900))] for n, c in
          zip(["OM", "JAI MATA DI", "SHUBH", "RANG", "KALA", "LAXMI"], cities + ["SURAT"])]
     return {"Terms Approval": terms, "Sheet1": log, "Supplier's Enquiry Sheet ": city, "Inactive25-26": inactive,
-            "purchase issues ": [["Date", "Supplier", "Issue", "Design no.", "Bill No."]]}
+            "purchase issues ": [["Date", "Supplier", "Issue", "Design no.", "Bill No."]],
+            "Sheet18": [[], ["", "*", "pending ", "", "*", "pending details"],
+                        ["", "1", "NOVA PRINTS", "rates revised, colours will be finalised", "1", "ORBIT TEX"]]}
 
 
 class DemoSheetSource:

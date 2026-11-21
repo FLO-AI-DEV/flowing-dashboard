@@ -58,8 +58,10 @@ Add a test in `backend/tests/test_api.py` and demo data in `backend/app/sources/
 
 In `backend/app/assistant/pages.py` add a `Page(...)` for the new endpoint (its words, description and filters),
 and register the function in `_ASSISTANT_PAGES` in `main.py`. New words (Hindi / Hinglish) go in
-`backend/app/assistant/text.py`. Add the questions you expect people to ask, with the expected answer, to
-`backend/tests/test_assistant.py`.
+`backend/app/assistant/text.py`. So Gemini can look up the sheet's rows exactly, add its tidy table (friendly
+column names) to `build_tables` and `TABLES` in `backend/app/assistant/datatools.py`. New words and their meanings
+go in `backend/app/assistant/glossary.py`. Add the questions you expect people to ask, with the expected answer, to
+`backend/tests/test_assistant.py` (rules) or the bank in `backend/tests/test_chatbot_data.py`.
 
 ## 6. Check and open the PR
 

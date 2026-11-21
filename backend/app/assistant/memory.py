@@ -50,3 +50,40 @@ class ChatMemory:
 
     def __len__(self):
         return len(self._data)
+
+
+class AnswerCache:
+    """Answers to questions asked before, for the same data version: the same question gives the same answer
+    instantly and costs no Gemini call. Only questions asked without earlier context are cached (a follow-up
+    depends on its chat). Lives in this process only."""
+
+    def __init__(self, ttl: int = 900, max_items: int = 500):
+        self.ttl, self.max_items = ttl, max_items
+        self._data: "OrderedDict[tuple, tuple[float, dict]]" = OrderedDict()
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def key(question: str, context: dict | None, version: str) -> tuple:
+        q = " ".join(question.lower().split()).strip(" ?!.")
+        page = (context or {}).get("page") or ""
+        return (q, page, version)
+
+    def get(self, key: tuple) -> dict | None:
+        now = time.time()
+        with self._lock:
+            hit = self._data.get(key)
+            if not hit or now - hit[0] > self.ttl:
+                return None
+            self._data.move_to_end(key)
+            return dict(hit[1])
+
+    def put(self, key: tuple, value: dict):
+        with self._lock:
+            self._data[key] = (time.time(), dict(value))
+            self._data.move_to_end(key)
+            while len(self._data) > self.max_items:
+                self._data.popitem(last=False)
+
+    def clear(self):
+        with self._lock:
+            self._data.clear()

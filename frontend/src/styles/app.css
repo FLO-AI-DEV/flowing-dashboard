@@ -1695,3 +1695,28 @@ a.alert:hover {
     min-width: 0;
   }
 }
+
+/* starter questions in an empty chat */
+.fa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 6px;
+}
+.fa-chip {
+  border: 1px solid var(--control-edge);
+  background: var(--control);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+.fa-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.fa-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

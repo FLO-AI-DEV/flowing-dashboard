@@ -16,9 +16,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..core import (FY_MONTH_LABELS, MONTH_NAME_BY_NUM, clean_delay_days, clean_text, fmt, inr_short,
-                    month_label, month_sort_key, norm_key, num, parse_dates, safe_div_pct)
-from ..tables import RATE_APPROVAL, kpi, notice, table, with_total
+from ..core import (MONTH_NAME_BY_NUM, clean_delay_days, clean_text, fmt, month_label, month_sort_key, norm_key, num, parse_dates, safe_div_pct)
+from ..tables import RATE_APPROVAL, kpi, notice, table
 
 COLS = {
     "po_date": ["PO / ORDER DATE", "PO DATE", "ORDER DATE", "PO ORDER DATE"],

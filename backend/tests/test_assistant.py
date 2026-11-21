@@ -68,7 +68,7 @@ CASES = [
     ("FWPO-00098/2627", "FWPO-00098/2627"),
     # order to vendors
     ("total amount in order to vendors", "Total amount"),
-    ("rows in order to vendors", "Rows is"),
+    ("rows in order to vendors", "rows **60"),
     # lists, help, pages
     ("how many vendors", "vendors on the dashboard"),
     ("list cities", "cities"),
@@ -78,7 +78,7 @@ CASES = [
     ("pending in one word", "**₹"),
     # supplier enquiry sheet
     ("unsolved enquiries", "Unsolved enquiries is"),
-    ("kitni enquiry pending hai gungun ke paas", "Pending enquiries for Gungun"),
+    ("kitni enquiry pending hai gungun ke paas", "Pending enquiries for **Gungun** is **7"),
     ("how many suppliers waiting for PO in surat", "Waiting for PO for **Surat"),
     ("terms approval pending", "Approval pending is"),
     ("inactive suppliers", "Inactive suppliers is"),

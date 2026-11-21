@@ -22,7 +22,9 @@ live sync, intro, dark mode, phone layout and assistant. Only the sheets, calcul
 
 **Flo-Wing Assistant** (robot, bottom right): "total pending", "sabse zyada pending kis vendor ke paas hai",
 "pending kitna percent hai ordered ka", "payment due this week", "status of po 12",
-"kitni enquiry pending hai gungun ke paas", "suppliers waiting for PO in surat", follow-ups like "and received?".
+"kitni enquiry pending hai gungun ke paas", "suppliers waiting for PO in surat", "kesar ethnic details",
+"PO kya hai", "what does ageing mean", follow-ups like "and received?". With a Gemini key it looks up any row of any
+tab exactly and checks every figure it gives against the sheet.
 See [`docs/CHATBOT.md`](docs/CHATBOT.md).
 
 ## How it works
