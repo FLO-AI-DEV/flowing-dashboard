@@ -12,24 +12,29 @@ from functools import lru_cache
 
 
 SHEET_REGISTRY: dict[str, dict] = {
-    "order_status": {
-        "name": "Order Status",
-        "id": "1_qotGLwvg50KScUYij7sLYv7O2DANifLL-AhdGt0VzE",
-        # one row per PO line
-        "source_tabs": ["PO Master"],
+    "orders": {
+        "name": "Order Sheet",
+        # The dashboard reads "Flo-Wing Data Mirror" (owned by ai@floindia.com): one IMPORTRANGE per month tab, values
+        # only. NEW ORDERSHEET-2026-27 itself is too slow to read directly (4.5 million cells under NOW() colour
+        # rules make the Sheets API time out), and its owners keep it as it is.
+        "id": "1HS61QM69oQXf6HeEeRo9GrM-2UaMzeiZtVxGptCPvSI",
+        "source_id": "1jFwMi8NNxo8q_-6-AMOA9M58-rO1Cf_wgN54pAjCnHk",   # NEW ORDERSHEET-2026-27
+        # Every month / channel tab is read (NOV CREDIT SALE, NOV CASH SALE, Nov MUMBAI SALE, OCT …).
+        # New month tabs are picked up automatically by name; "full payment rcvd orders" is left out.
+        "tab_rule": "orders.is_order_tab",
     },
-    "dues": {
-        "name": "Supplier Dues",
-        "id": "1QqWW4bnzeYvIz2atW19__Fv_r_jN8BbSKLpcByfeayI",
-        # dated dues lists ("18th sep.", "4th Sep." ...). Empty = the left-most tab; the page can pick another.
-        "source_tabs": [],
-        # supplier credit days / discount / agency
-        "terms_tabs": ["Updated Sheet", "List of creditor's"],
+    "enquiries": {
+        "name": "Customer enquiries",
+        # ENQUIRY SHEET 2025-2026 (owned by customercare@flowingindia.com). The tabs read are listed in
+        # dashboards/enquiries.py (TABS); "NEW DATA" and "OLD DATA" are not used.
+        # Read through its own mirror, "Flo-Wing Enquiries Mirror" (owned by ai@floindia.com): tabs ENQ CALLS / ENQ LOGISTICS /
+        # ENQ BILLING are IMPORTRANGE of the real sheet 1140OgnYZ6B4_Cv2rSdD9wWUofvQfG0B_0KYnU7BWMoQ.
+        "id": "1OqnAbP8B1VFw6ZJXT1_ZTMQLt4hQ3AWzzxjFCZcM3Bc",
     },
-    "order_to_vendors": {
-        "name": "Order to Vendors",
-        "id": "1IM7wW2ev7TC-Ud08dHOXWiMOESVSRI9LILS2TaAoIO4",
-        "source_tabs": [],  # empty = the left-most tab; the page can pick another
+    "payments": {
+        "name": "Payment follow-up",
+        "id": "1YtzUTartI0f1gDWwLFNDKsbwyYLO1cHeEhCL0ZaYQnE",   # CRM "New po sheet" (Kiran, Suryansh, Lokesh)
+        "tab": "Form responses 1",
     },
 }
 
@@ -50,11 +55,6 @@ class Settings:
 def _load_service_account() -> dict | None:
     raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     path = os.getenv("GOOGLE_SERVICE_ACCOUNT_FILE", "").strip()
-    if not raw and not path:
-        # simplest setup: the key saved as backend/service-account.json
-        default = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "service-account.json")
-        if os.path.isfile(default):
-            path = default
     if not raw and path and os.path.isfile(path):
         with open(path, encoding="utf-8") as fh:
             raw = fh.read()
@@ -94,7 +94,7 @@ def _token_secret(sa: dict | None) -> str:
     if secret not in _PUBLIC_SECRETS:
         return secret
     if sa and sa.get("private_key"):
-        return hashlib.sha256(("flowing-token:" + sa["private_key"]).encode()).hexdigest()
+        return hashlib.sha256(("flo-token:" + sa["private_key"]).encode()).hexdigest()
     return "dev-only-secret"
 
 

@@ -8,10 +8,11 @@ export const REFRESH_MS = 60_000;
 
 /** One dashboard endpoint. Re-reads every minute (the server re-reads Google at most once a minute), keeps the
  *  previous result on screen while filters change, and reports its sync state to the live store. */
-export function useDashboard<T extends Envelope>(path: string, params: Params) {
+export function useDashboard<T extends Envelope>(path: string, params: Params, enabled = true) {
   const q = useQuery<T, Error>({
     queryKey: [path, params],
     queryFn: () => api<T>(path, params),
+    enabled,
     refetchInterval: REFRESH_MS,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,

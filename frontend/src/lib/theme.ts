@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 export type ThemePref = "light" | "dark" | "system";
-const KEY = "flowing-theme";
+const KEY = "flo-theme";
 
 function read(): ThemePref {
   try {

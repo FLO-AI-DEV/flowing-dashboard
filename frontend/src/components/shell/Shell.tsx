@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sheet, Sun, Truck, X } from "lucide-react";
+import { Building2, ClipboardList, MessageCircleQuestion, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sun, Users, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFetchingReporter, useRefreshAll } from "../../api/hooks";
@@ -8,23 +8,19 @@ import { Wordmark } from "../Brand";
 import { LiveStatus } from "./LiveStatus";
 
 export const NAV = [
-  { group: "Operations", items: [
-    { to: "/", label: "Overview", icon: LayoutDashboard },
+  { group: "Flo-Wing", items: [{ to: "/", label: "Today", icon: LayoutDashboard }] },
+  { group: "CRM", items: [
     { to: "/orders", label: "Orders", icon: ClipboardList },
-    { to: "/vendors", label: "Vendors", icon: Building2 },
-  ] },
-  { group: "Purchasing and accounts", items: [
-    { to: "/order-to-vendors", label: "Order to vendors", icon: Truck },
-    { to: "/dues", label: "Supplier dues", icon: IndianRupee },
-  ] },
-  { group: "Data", items: [
-    { to: "/sheets", label: "Sheets", icon: Sheet },
+    { to: "/enquiries", label: "Enquiries", icon: MessageCircleQuestion },
+    { to: "/payments", label: "Payments", icon: IndianRupee },
+    { to: "/team", label: "Team", icon: Users },
+    { to: "/clients", label: "Clients", icon: Building2 },
   ] },
 ];
 
 export function pageLabel(path: string) {
   for (const g of NAV) for (const it of g.items) if (it.to === path) return it.label;
-  return "Overview";
+  return "Today";
 }
 
 const NAV_KEY = "flowing-nav";
@@ -82,7 +78,7 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className={`app${open ? " nav-open" : ""}${rail ? " nav-rail" : ""}`}>
       <aside className="sidebar" aria-label="Main navigation">
         <NavLink to="/" className="brand" aria-label="Flo-Wing Operations home">
-          <Wordmark variant="letters" height={rail ? 15 : 22} wing={!rail} />
+          <Wordmark variant="letters" height={rail ? 15 : 22} />
           <span className="brand-scope">
             Operations
             <br />
@@ -104,7 +100,7 @@ export function Shell({ children }: { children: ReactNode }) {
         </nav>
         <div className="sidebar-foot">
           <div className="stamp" style={{ padding: "0 8px", whiteSpace: "normal" }}>
-            Read-only view of the Flo-Wing Google Sheets. Edit data in the sheets; it shows here within a minute.
+            Read-only view of the Flo-Wing order sheet. Edit in the sheet; it shows here within a minute.
           </div>
         </div>
       </aside>
@@ -117,7 +113,7 @@ export function Shell({ children }: { children: ReactNode }) {
           {rail ? <PanelLeftOpen /> : <PanelLeftClose />}
         </button>
         <div className="crumb">
-          <span className="scope">FLO-WING · </span>
+          <span className="scope">Flo-Wing · </span>
           <b>{pageLabel(loc.pathname)}</b>
         </div>
         <div className="topbar-right">

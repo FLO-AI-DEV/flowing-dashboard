@@ -1,30 +1,48 @@
-# ---- secrets: never commit these ----
-.env
-.env.*
-!backend/.env.example
+# Google credentials - never upload these
+.streamlit/secrets.toml
+credentials.json
 service-account.json
 *service-account*.json
 *credentials*.json
 *-sa-key*.json
 gcp-key*.json
+flo-wing-dashboard-*.json
+secrets/
 
-# ---- Python ----
+# Python environment
 .venv/
 venv/
+env/
+
+# Python cache
 __pycache__/
 *.py[cod]
-.pytest_cache/
 
-# ---- Node / frontend ----
-node_modules/
-frontend/dist/
+# Environment variables
+.env
+.env.*
+!.env.example
 
-# ---- local logs ----
-*.log
-backend/chat_questions.log
-
-# ---- editors / OS ----
+# Editor files
 .vscode/
 .idea/
+
+# Operating system files
 .DS_Store
 Thumbs.db
+
+# Node / frontend
+node_modules/
+frontend/dist/
+*.log
+.vercel
+.taste-skill/
+!backend/.env.example
+frontend/test-results/
+frontend/playwright-report/
+
+# graphify: keep graph.json, graph.html, GRAPH_REPORT.md; ignore caches and temp files
+graphify-out/cache/
+graphify-out/.graphify_*
+graphify-out/.spec_path
+graphify-out/cost.json

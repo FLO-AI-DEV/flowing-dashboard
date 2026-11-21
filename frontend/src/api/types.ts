@@ -1,4 +1,4 @@
-/* Shapes returned by the Flo-Wing API (backend/app). */
+/* Shapes returned by the Flo-Wing API (backend/app). Copied by hand into mobile/src/lib/types.ts. */
 
 export type Fmt = "text" | "int" | "dec" | "dec1" | "pct" | "inr" | "inr_full" | "date";
 export type Tone = "good" | "alert";
@@ -85,100 +85,96 @@ export interface Envelope {
 
 export type Options = Record<string, string[]>;
 
-export interface OrdersData extends Envelope {
-  empty?: boolean;
-  options: Options;
-  notices: Notice[];
-  kpis: Kpi[];
-  summary: { overdue_lines: number; pending_pcs: number; pending: number; overdue: number; vendors: number; oldest: { po: string; vendor: string; days: number } | null };
-  tables: { monthly: TableData; vendors: TableData; categories: TableData; departments: TableData; cities: TableData; overdue: TableData };
-  overdue_total: number;
-  charts: { monthly: SeriesChart; receivable: SeriesChart; vendors: SeriesChart; categories: SeriesChart; timing: Slice[] };
+export type Tone3 = "bad" | "warn" | "good";
+
+export interface Action {
+  who: string;
+  stage: string;
+  what: string;
+  late: number;
+  due: number;
+  oldest_days: number;
+  tone: Tone3;
 }
 
-export interface VendorsData extends Envelope {
-  empty?: boolean;
-  options: Options;
-  notices: Notice[];
-  kpis: Kpi[];
-  summary: {
-    late_vendors: number;
-    vendors: number;
-    most_overdue: { name: string; value: number } | null;
-    most_pending: { name: string; value: number } | null;
-    most_reliable: { name: string; value: number } | null;
-  };
-  tables: { scorecard: TableData };
-  charts: { pending: SeriesChart; overdue: Slice[]; ontime: Slice[] };
+export interface PipelineStep {
+  key: "reply" | "po" | "bill" | "hold" | "old" | "done";
+  label: string;
+  owner: string;
+  count: number;
+  late: number;
 }
 
-export interface DuesData extends Envelope {
-  empty?: boolean;
-  options: Options;
+export interface Wrong {
+  key: "reply" | "po" | "bill" | "hold";
+  label: string;
+  who: string;
+  backlog: number;
+  today: number;
+  oldest_days: number;
+}
+
+export interface CauseData extends Envelope {
   title: string;
-  notices: Notice[];
-  kpis: Kpi[];
-  tab: string;
-  tabs: string[];
-  summary: { total: number; overdue: number; due7: number; bills: number; suppliers: number; oldest: number };
-  tables: { suppliers: TableData; agencies: TableData; bills: TableData };
-  charts: { ageing: Slice[]; suppliers: Slice[]; agencies: Slice[] };
-}
-
-export interface OtvData extends Envelope {
-  empty?: boolean;
-  options: Options;
-  notices: Notice[];
-  kpis: Kpi[];
-  tab: string;
-  tabs: string[];
-  detected: { vendor: string | null; status: string | null; amount: string | null; qty: string | null; header_row: number };
-  charts: { by_status: Slice[]; by_vendor: Slice[]; money: boolean };
-  tables: { rows: TableData };
-  rows_total: number;
-}
-
-export interface SheetInfo {
-  key: string;
-  name: string;
-  url: string;
-  tabs: string[];
-  default_tab: string;
-  error: string | null;
-}
-
-export interface SheetView extends Envelope {
-  name: string;
-  tab: string;
-  header_row: number;
+  count: number;
   total: number;
-  shown: number;
   table: TableData;
 }
-
-export interface Alert {
-  kind: NoticeKind;
-  area: string;
-  title: string;
-  text: string;
-  money?: boolean;
-  top?: { dimension: string; name: string; value: number }[];
+export interface DailyClose {
+  received: number;
+  done: number;
+  pending: number;
+  backlog: number;
+  after_cutoff: boolean;
+  cutoff: string;
+  by_channel: { channel: string; received: number; done: number }[];
+  wrong: Wrong[];
+  never_marked: number;
 }
 
-export interface OverviewData extends Envelope {
+export interface HomeData extends Envelope {
+  title: string;
+  month: string[];
+  kpis: Kpi[];
+  close: DailyClose;
+  pipeline: PipelineStep[];
+  actions: Action[];
+  channels: { channel: string; orders: number; sets: number }[];
+  notices: Notice[];
   options: Options;
-  alerts: Alert[];
-  errors: Notice[];
-  sections: {
-    orders?: {
-      kpis: Kpi[];
-      charts: { monthly: SeriesChart; vendors: SeriesChart; timing: Slice[] };
-      tables: { vendors: TableData; overdue: TableData };
-      overdue_total: number;
-    };
-    dues?: { kpis: Kpi[]; title: string; notices: Notice[]; tables: { suppliers: TableData }; charts: { ageing: Slice[] } };
-    otv?: { kpis: Kpi[]; charts: { by_status: Slice[]; by_vendor: Slice[]; money: boolean } };
-  };
+}
+
+export type OrderState = "late" | "due" | "ok" | "hold" | "old" | "done";
+
+export interface OrdersData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  table: TableData & { states: OrderState[] };
+  options: Options;
+}
+
+export interface TeamData extends Envelope {
+  title: string;
+  sales: TableData;
+  owners: TableData;
+  fixes: TableData;
+  options: Options;
+}
+
+export interface ClientsData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  table: TableData;
+  options: Options;
+}
+
+export interface PaymentsData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  members: TableData;
+  pending: TableData & { states?: OrderState[] };
+  notices: Notice[];
+  options: Options;
 }
 
 export interface SourceStatus {
@@ -205,4 +201,38 @@ export interface Health {
   source: "google" | "demo";
   ttl: number;
   auth_required: boolean;
+}
+
+export interface NudgeWho {
+  enabled: boolean;
+  test_mode: boolean;
+  who: Record<string, string[]>;
+  error?: string;
+}
+
+export interface NudgePreview {
+  count: number;
+  to: string[];
+  message: string;
+  already_sent_minutes: number | null;
+  test_mode: boolean;
+  sent?: boolean;
+  sent_at?: string;
+}
+
+export interface EnquiryCause {
+  key: string;
+  label: string;
+  open: number;
+  today: number;
+  older: number;
+  oldest_days: number;
+}
+export interface EnquiriesData extends Envelope {
+  kpis: Kpi[];
+  today: { received: number; status: Record<string, number> };
+  causes: EnquiryCause[];
+  by_source: { source: string; open: number; total: number }[];
+  total_open: number;
+  notices: Notice[];
 }

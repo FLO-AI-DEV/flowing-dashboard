@@ -1,99 +1,108 @@
 # Flo-Wing Operations Dashboard
 
-Live orders, vendors and supplier dues for Flo-Wing, read straight from Google Sheets and refreshed every minute,
-with a chatbot that answers questions about the numbers in English or Hinglish.
-
-Built on the FLO Operations Dashboard (`akshatparashar/flo-dashboard`): same FastAPI + React architecture, design,
-live sync, intro, dark mode, phone layout and assistant. Only the sheets, calculations and pages are Flo-Wing's.
-
-[![CI](https://github.com/FLO-AI-DEV/flowing-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/FLO-AI-DEV/flowing-dashboard/actions/workflows/ci.yml)
+One clean screen for the owner: how many orders came in, where open orders are waiting, and **who must act**. It
+reads Flo-Wing's **NEW ORDERSHEET-2026-27** Google Sheet (read-only) every minute. Built on the FLO dashboard code
+(`akshatparashar/flo-dashboard`): the same API, cache, sign-in, tables and app shell, with Flo-Wing's order logic
+added.
 
 ## Pages
 
-| Page | Sheet | What it answers |
-|---|---|---|
-| **Overview** | all | What needs attention now: the sheets wired into FLO, alert cards, orders, dues, vendor orders |
-| **Orders** | Order Status (2026-2027) → `PO Master` | What's still to come in and what's late, by month, vendor, category, department, city; every PO |
-| **Vendors** | Order Status → `PO Master` | Who owes the most, who is late, who delivers on time (scorecard) |
-| **Order to vendors** | Order to vendors | Rows, totals and breakdown by status and vendor (columns found by name) |
-| **Supplier dues** | DUES PAYMENT SUPPLIERS | Payable, overdue, due in 7 days, ageing, by supplier and agency, every bill |
-| **Sheets** | all | Any tab of any sheet, live, with search and CSV |
+| Page | What it answers |
+|---|---|
+| **Today** | Orders today and this month, open orders, how many are late. *Needs action*: one line per person who must act, worst first (red = late, amber = needs a look, green = clear). *Where open orders are waiting*: Mona's reply → PO → Billing, plus on hold. Every line opens the orders behind it. |
+| **Orders** | Every open order, most overdue first: who must act, days open, status, and the reason typed in the sheet. Filter by stage, sales person, channel, late only. |
+| **Team** | Who is holding orders (Mona, PO team, Billing team), the sales team's orders, sets, clients and days to bill, and the sheet rows someone forgot to complete. |
+| **Clients** | Biggest clients, repeat buyers, and who has gone quiet. |
+| **Payments** (CRM) | From the "New po sheet" payment follow-up form: pending ₹ per CRM member (Kiran, Suryansh, Lokesh), orders **not followed up for 2+ days** (measured from the form's time stamps), paid orders whose status was never set to RECIEVED, and money collected this month. |
 
-**Flo-Wing Assistant** (robot, bottom right): "total pending", "sabse zyada pending kis vendor ke paas hai",
-"pending kitna percent hai ordered ka", "payment due this week", "status of po 12", follow-ups like "and received?".
-See [`docs/CHATBOT.md`](docs/CHATBOT.md).
+The UI is the flo-dashboard UI unchanged: intro animation, data-flow panel, shell, tables and charts. Only the pages
+and the data behind them are Flo-Wing's. The FLO logo is still in place until Flo-Wing artwork is added in
+`frontend/src/components/Brand.tsx` and `frontend/public/brand/`.
 
-## How it works
+## How the order sheet is read (messy sheets are expected)
 
-```
-Google Sheets ──(read-only service account)──► FastAPI backend ──JSON──► React frontend
-                                               │ store.py: 60 s cache, one read per sheet per minute
-                                               │ dashboards/*.py: KPIs, tables, charts
-                                               │ assistant/: rules + optional Gemini analyst
-```
+`backend/app/locate.py` finds every table **by its headings, never by column letter**:
 
-- **Read-only.** The key uses the `spreadsheets.readonly` scope; nothing can ever change a sheet.
-- **Messy sheets are fine.** Header rows are found by their text and columns by name (the sheets' own spellings
-  such as "vender name", "Recived Amt", "Pending Order Velue" are accepted), dates and amounts like
-  `3,48,112.00` / `56700.00 Cr` are parsed. A missing column is reported on the page.
-- **Resilient.** If Google doesn't answer, the last good copy stays on screen and the top bar says *Delayed*; one
-  failing sheet never blanks the others.
+- the heading row can be anywhere in the top 30 rows (title rows, filter rows, blank rows above it are fine);
+- inserted or moved columns don't matter;
+- each column can have several spellings: `MONA REPLY` = `BILL/PO BY MONA`, `CLIENT NAME` = `PARTY NAME`…;
+- merged two-row headings are read together (`PCS` under `DISPATCH` → `DISPATCH PCS`);
+- blank rows, TOTAL rows, count rows and a pasted second heading row are skipped;
+- quantities like `3+6 pcs` count as 9.
 
-## Run it
+If a tab loses a heading the dashboard needs, that tab is left out and Today shows *"NOV CASH SALE: layout changed —
+client not found"*, so you never get wrong figures without a warning. To support a new spelling, add it to
+`ORDER_COLS` in `backend/app/dashboards/orders.py`.
 
-**Windows, no setup:** put the service-account key at `backend/service-account.json`, install Node.js LTS and
-Python 3.12, then double-click **`START DASHBOARD.bat`**. For the chatbot's Gemini mode double-click
-**`SET GEMINI KEY.bat`** once.
+Tabs read: every `… CREDIT SALE`, `… CASH SALE`, `… MUMBAI SALE` tab. New month tabs are picked up by name with no
+code change. `full payment rcvd orders …` is ignored.
 
-**Developers:** see [`CONTRIBUTING.md`](CONTRIBUTING.md). In short:
+## The rules (change them in one place)
+
+`STAGES` in `backend/app/dashboards/orders.py`:
+
+| Stage | Owner | Deadline (days after order date) | Reason column shown |
+|---|---|---|---|
+| Mona's reply (BILL / PO), **CREDIT only** | Mona | 1 | HOLD REASON |
+| PO: CREDIT when Mona said PO; **every CASH / MUMBAI order** | PO team | 3 | PO NOT DONE REASON |
+| Billing (BILL STATUS = DONE) | Billing team | 3 | BILL NOT DONE REASON |
+
+On-time % and usual days for each stage come from the real dates in the sheet: Mona's reply date (the column after
+MONA REPLY), PO STATUS DATE TIME, and BILL STATUS TIME AND DATE. An order with a HOLD REASON is parked with its sales
+person. Rows with no quantity, no sales person, or DONE without its date are listed for the sales person to fix.
+**Owners and deadlines are first guesses and must be confirmed.**
+
+Layouts seen in the real sheet, all covered by tests (`tests/test_orders_layout.py`):
+
+- the heading row is in row 1 on some tabs and row 2 on others;
+- an extra empty column shifts everything (APR CREDIT);
+- Mona's columns have blank headings (APR CREDIT), or the date column is headed by a date (NOV CREDIT);
+- a client's name was typed over CLIENT NAME (APR CASH);
+- two DATE columns appear on one tab.
+
+Headings that are blank or typed over are found by position (for example, "the column right after LEDGER"). That
+guess is only used when the column's data looks right.
+
+This month's and last month's tabs are re-read every minute; older month tabs every 6 hours (Google read limits).
+
+## Automations (same numbers as the screen)
+
+`GET /api/alerts` returns WhatsApp-ready text: the owner's morning summary, plus one message per person with late
+work or incomplete rows. The next step is to write these into a Trigger tab that Iris sends, on a schedule (owner
+9:30, employees 10:30 and 4 PM) and from a Nudge button.
+
+## Run locally
 
 ```bash
-cd backend  && pip install -r requirements.txt -r requirements-dev.txt && python -m uvicorn app.main:app --reload --port 8000
-cd frontend && npm ci && npm run dev        # http://localhost:5173
+# API (demo data unless a Google key is set)
+cd backend && python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt && cp .env.example .env
+uvicorn app.main:app --reload --port 8000
+# Web (second terminal)
+cd frontend && npm install && npm run dev                        # http://localhost:5173
 ```
 
-Without a key the API serves **demo data** (*Demo data* badge in the top bar). `GET /api/health` shows
-`"source": "google"` when the real sheets are read. API docs: http://localhost:8000/api/docs.
+Real data: set `DATA_SOURCE=google` and `GOOGLE_SERVICE_ACCOUNT_JSON` (or `_FILE`) in `backend/.env`, and share the
+order sheet with the service account's `client_email` as **Viewer**. Use a **new** service-account key made for
+Flo-Wing; don't reuse FLO's.
 
-## Configuration — `backend/.env` (copy from `backend/.env.example`)
+Deploy to Vercel exactly like the FLO dashboard: `vercel.json` is unchanged. Set `DATA_SOURCE`,
+`GOOGLE_SERVICE_ACCOUNT_JSON`, `DASHBOARD_PASSCODE` and `TOKEN_SECRET`.
 
-| Setting | Default | Meaning |
-|---|---|---|
-| `GOOGLE_SERVICE_ACCOUNT_FILE` / `_JSON` | `backend/service-account.json` | The read-only Google key |
-| `DATA_SOURCE` | `google` if a key is found, else `demo` | Force `demo` for development |
-| `LIVE_TTL_SECONDS` | `60` | How often a sheet is re-read |
-| `DASHBOARD_PASSCODE` | empty | Team passcode; empty = no sign-in |
-| `GEMINI_API_KEY`, `GEMINI_MODEL`, `GEMINI_MODE` | empty, `gemini-flash-lite-latest`, `analyst` | Chatbot AI (optional) |
-| `CHAT_LOG` | `on` | Local log of chatbot questions (no figures) |
+## Check real data with your key
 
-Sheet IDs and tab names: `backend/app/config.py` → `SHEET_REGISTRY`.
-
-## Project layout
-
-```
-backend/
-  app/
-    main.py              API routes (read-only)
-    config.py            settings + SHEET_REGISTRY (the sheets)
-    store.py             reads, caches and parses sheets
-    sources/             google.py (Sheets API, read-only) · demo.py (sample data)
-    dashboards/          orders.py · dues.py · generic.py · overview.py  (all calculations)
-    assistant/           chatbot: engine.py (rules) · analyst.py (Gemini) · calc.py · memory.py
-  tests/                 pytest: API, chatbot question bank, analyst
-frontend/
-  src/pages/             one file per page
-  src/components/        shell, charts, tables, filters, data-flow, assistant
-docs/                    ADDING_A_SHEET.md · CHATBOT.md
-.github/                 CI workflow + PR template
+```bash
+cd backend
+python scripts/check_access.py secrets/<key>.json   # which sheets the key can open
+python scripts/check_data.py secrets/<key>.json     # what the dashboard reads from them, tab by tab
 ```
 
-## Team workflow
+## Tests
 
-`main` is always the tested dashboard. Each developer works on a branch (`feature/<sheet>-…`), opens a pull request,
-and merges after CI passes and the numbers have been checked against the sheet. Adding a sheet is a step-by-step
-recipe: [`docs/ADDING_A_SHEET.md`](docs/ADDING_A_SHEET.md).
+`cd backend && pytest` covers the heading reader against shuffled and messy layouts, both real tab layouts, the
+stage, late and owner rules, the alert texts, and every endpoint on the demo sheet. `cd frontend && npm test` runs
+the unit tests, and `npm run build` typechecks and builds.
 
-## Security
+## Not adapted yet
 
-Never commit `service-account.json`, `.env` or any API key — `.gitignore` blocks the usual names; check your diff
-anyway. If a key is ever shared or committed, delete it in Google Cloud / AI Studio and create a new one.
+`mobile/` is still the FLO phone app. Adapt it after the web pages are approved: same API, four screens.

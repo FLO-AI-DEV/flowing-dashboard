@@ -26,15 +26,18 @@ def a1_tab(title: str) -> str:
 class GoogleSheetSource:
     name = "google"
 
-    def __init__(self, service_account_info: dict, timeout: float = 30.0):
+    # The Flo-Wing order sheet is heavy (8,000+ row tabs); Google sometimes takes 30-60 s to answer, or briefly
+    # answers 503. A long wait and four tries ride that out; the store keeps the last good copy meanwhile.
+    def __init__(self, service_account_info: dict, timeout: float = 60.0, attempts: int = 4):
         creds = Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
         self.session = AuthorizedSession(creds)
         self.timeout = timeout
+        self.attempts = attempts
         self.client_email = service_account_info.get("client_email", "")
 
     def _get(self, url: str, params: dict | None = None) -> dict:
         last = None
-        for attempt in range(3):
+        for attempt in range(self.attempts):
             try:
                 resp = self.session.get(url, params=params, timeout=self.timeout)
             except Exception as e:  # network error
@@ -53,7 +56,8 @@ class GoogleSheetSource:
                     if resp.status_code in (403, 404) and self.client_email:
                         hint = f" Share the sheet with {self.client_email} as Viewer."
                     raise SheetAccessError(f"Google API {resp.status_code}: {msg}.{hint}")
-            time.sleep(0.6 * (2 ** attempt))
+            if attempt < self.attempts - 1:
+                time.sleep(min(8.0, 1.0 * (2 ** attempt)))
         raise SheetAccessError(f"Google Sheets could not be reached: {last}")
 
     def list_tabs(self, sheet_id: str) -> list[tuple[str, int]]:

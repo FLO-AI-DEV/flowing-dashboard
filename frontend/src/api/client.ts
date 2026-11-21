@@ -1,6 +1,6 @@
 /* Minimal API client. Same-origin /api in the browser; the mobile app sets its own base URL. */
 
-const TOKEN_KEY = "flowing-token";
+const TOKEN_KEY = "flo-token";
 let base = (import.meta.env.VITE_API_BASE as string | undefined) ?? "";
 
 export function setApiBase(url: string) {

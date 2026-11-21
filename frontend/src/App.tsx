@@ -2,18 +2,17 @@ import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { api, getToken, setToken } from "./api/client";
 import { useHealth, useStatus } from "./api/hooks";
-import { Assistant } from "./components/assistant/Assistant";
 import { Wordmark } from "./components/Brand";
 import { Preloader } from "./components/Preloader";
 import { Shell } from "./components/shell/Shell";
 import { PageSkeleton } from "./components/ui";
-import Overview from "./pages/Overview";
+import Home from "./pages/Home";
 
 const Orders = lazy(() => import("./pages/Orders"));
-const Vendors = lazy(() => import("./pages/Vendors"));
-const OrderToVendors = lazy(() => import("./pages/OrderToVendors"));
-const Dues = lazy(() => import("./pages/Dues"));
-const Sheets = lazy(() => import("./pages/Sheets"));
+const Team = lazy(() => import("./pages/Team"));
+const Clients = lazy(() => import("./pages/Clients"));
+const Enquiries = lazy(() => import("./pages/Enquiries"));
+const Payments = lazy(() => import("./pages/Payments"));
 
 function SignIn({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState("");
@@ -36,9 +35,9 @@ function SignIn({ onDone }: { onDone: () => void }) {
   return (
     <main className="signin">
       <form onSubmit={submit}>
-        <Wordmark variant="letters" height={30} wing />
+        <Wordmark variant="letters" height={30} />
         <h1>Operations dashboard</h1>
-        <p>Enter the team passcode to see live Flo-Wing orders, vendors and dues.</p>
+        <p>Enter the passcode to see live orders and who needs to act.</p>
         <input className="field" type="password" autoComplete="current-password" placeholder="Passcode" value={code} onChange={(e) => setCode(e.target.value)} autoFocus aria-label="Passcode" />
         {err && <div className="err" role="alert">{err}</div>}
         <button className="btn primary" type="submit" disabled={busy || !code}>
@@ -72,21 +71,20 @@ function Dashboard() {
   };
   return (
     <>
-      <Shell>
-        <Suspense fallback={<div className="page"><PageSkeleton /></div>}>
-          <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/vendors" element={<Vendors />} />
-            <Route path="/order-to-vendors" element={<OrderToVendors />} />
-            <Route path="/dues" element={<Dues />} />
-            <Route path="/sheets" element={<Sheets />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </Shell>
-      <Assistant />
-      {loading &&<Preloader status={status.data ?? (status.error ? ({ sources: {} } as never) : undefined)} onDone={finish} />}
+    <Shell>
+      <Suspense fallback={<div className="page"><PageSkeleton /></div>}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/orders" element={<Orders />} />
+          <Route path="/team" element={<Team />} />
+          <Route path="/clients" element={<Clients />} />
+          <Route path="/enquiries" element={<Enquiries />} />
+          <Route path="/payments" element={<Payments />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </Shell>
+    {loading && <Preloader status={status.data ?? (status.error ? ({ sources: {} } as never) : undefined)} onDone={finish} />}
     </>
   );
 }

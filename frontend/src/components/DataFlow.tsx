@@ -6,11 +6,10 @@ import { ago } from "../lib/format";
 import { useLive } from "../lib/live";
 import { prefersReducedMotion, useWidth } from "./charts/common";
 
-const ORDER = ["order_status", "dues", "order_to_vendors"];
+const ORDER = ["orders", "payments"];
 const LABEL: Record<string, string> = {
-  order_status: "Order status",
-  dues: "Supplier dues",
-  order_to_vendors: "Order to vendors",
+  orders: "Order sheet",
+  payments: "Payment follow-up",
 };
 
 export interface FlowOut {
@@ -20,7 +19,7 @@ export interface FlowOut {
   hot?: boolean;
 }
 
-/** The sheets wired into FLO and out to what they drive. Wires are real: one per Google Sheet, red and broken when
+/** The sheets wired into Flo-Wing and out to what they drive. Wires are real: one per Google Sheet, red and broken when
  *  that sheet fails. Sparks travel only when the browser actually asks for data (sources -> core) and when an
  *  answer arrives (core -> outputs); a brighter burst marks a sheet whose data really changed. */
 export function DataFlow({ sources, outputs, now }: { sources: Record<string, SourceStatus> | undefined; outputs: FlowOut[]; now: number }) {
@@ -40,7 +39,7 @@ export function DataFlow({ sources, outputs, now }: { sources: Record<string, So
     }
     const H = 232;
     const core = { x: W * 0.5, y: H / 2 };
-    const src = ORDER.map((k, i) => ({ k, x: 4, y: H / 2 + (i - (ORDER.length - 1) / 2) * 52, dotX: Math.min(220, W * 0.22) }));
+    const src = ORDER.map((k, i) => ({ k, x: 4, y: 30 + i * 43, dotX: Math.min(220, W * 0.22) }));
     const outX = W - Math.min(300, W * 0.3);
     const out = outputs.slice(0, 5).map((_, i, a) => ({ x: outX, y: H / 2 + (i - (a.length - 1) / 2) * 43 }));
     return { W, H, core, src, out };
@@ -133,7 +132,7 @@ export function DataFlow({ sources, outputs, now }: { sources: Record<string, So
   return (
     <div className="flow" ref={wrap} data-reveal>
       {width > 0 && (
-        <svg ref={svg} viewBox={`0 0 ${L.W} ${L.H}`} width={L.W} height={L.H} role="img" aria-label="Live data flow from the three Google Sheets into the dashboard">
+        <svg ref={svg} viewBox={`0 0 ${L.W} ${L.H}`} width={L.W} height={L.H} role="img" aria-label="Live data flow from the five Google Sheets into the dashboard">
           {L.src.map((s, i) => {
             const st = sources?.[s.k];
             const bad = !!st && !st.ok && !st.stale;

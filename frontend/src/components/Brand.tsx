@@ -6,17 +6,8 @@ const SRC = {
   full: { url: "/brand/flo-wordmark-navy.png", ratio: 800 / 566 },
 };
 
-export function Wordmark({ variant = "letters", height = 24, className = "", style, wing = false }: { variant?: "letters" | "full"; height?: number; className?: string; style?: React.CSSProperties; wing?: boolean }) {
+export function Wordmark({ variant = "letters", height = 24, className = "", style }: { variant?: "letters" | "full"; height?: number; className?: string; style?: React.CSSProperties }) {
   const s = SRC[variant];
-  if (wing)
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: Math.round(height * 0.25), flex: "none" }} aria-label="FLO WING" role="img">
-        <Wordmark variant={variant} height={height} className={className} style={style} />
-        <span aria-hidden="true" style={{ color: "var(--brand)", fontFamily: "var(--font-display, inherit)", fontWeight: 600, fontSize: Math.round(height * 0.5), letterSpacing: "0.16em", lineHeight: 1 }}>
-          WING
-        </span>
-      </span>
-    );
   return (
     <span
       role="img"

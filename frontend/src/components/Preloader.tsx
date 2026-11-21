@@ -6,11 +6,10 @@ import { ART, BRACKET, Wordmark } from "./Brand";
 import { prefersReducedMotion } from "./charts/common";
 import { navCollapsed } from "./shell/Shell";
 
-const SOURCE_ORDER = ["order_status", "dues", "order_to_vendors"];
+const SOURCE_ORDER = ["orders", "payments"];
 const SOURCE_NAMES: Record<string, string> = {
-  order_status: "Order status",
-  dues: "Supplier dues",
-  order_to_vendors: "Order to vendors",
+  orders: "Order sheet",
+  payments: "Payment follow-up",
 };
 const MIN_MS = 1700;
 const MAX_MS = 9000;
@@ -32,7 +31,7 @@ function pathOf(p: Pt[]) {
   return `M${p[0][0]},${p[0][1]} L${p[1][0]},${p[1][1]} L${p[2][0]},${p[2][1]} L${p[3][0]},${p[3][1]} L${p[4][0]},${p[4][1]}`;
 }
 
-/** FLO's open bracket draws itself like a wire, the wordmark appears inside it, the three sheets light up as they
+/** FLO's open bracket draws itself like a wire, the wordmark appears inside it, the five sheets light up as they
  *  really load, then the bracket stretches into the sheet frame of the app: the logo becomes the interface. */
 export function Preloader({ status, onDone }: { status: StatusData | undefined; onDone: () => void }) {
   const root = useRef<HTMLDivElement>(null);
@@ -127,7 +126,7 @@ export function Preloader({ status, onDone }: { status: StatusData | undefined; 
 
   const sources = status?.sources ?? {};
   return (
-    <div className="preloader" ref={root} aria-busy="true" aria-label="Loading FLO Operations">
+    <div className="preloader" ref={root} aria-busy="true" aria-label="Loading Flo-Wing Operations">
       <svg aria-hidden="true">
         <path ref={path} className="bracket" d={pathOf(start)} strokeWidth={ART.stroke * box.s} />
       </svg>
