@@ -1,5 +1,5 @@
 import { useDashboard } from "../api/hooks";
-import type { DuesData } from "../api/types";
+import type { DuesData, OtvData } from "../api/types";
 import { BarList } from "../components/charts/Lists";
 import { DataTable } from "../components/DataTable";
 import { ExtraFilters } from "../components/ExtraFilters";
@@ -11,13 +11,41 @@ import { PageHead, PageState } from "./common";
 
 const KEYS = ["tab", "supplier", "agency", ...EXTRA_KEYS];
 
+/** The current tabs of the dues sheet (supplier terms, queries, agency lists) have no bills: shown as a live table. */
+function SheetTab({ d, f }: { d: OtvData; f: ReturnType<typeof useFilters> }) {
+  return (
+    <>
+      <PageHead title="Supplier dues" meta={d.meta} lede={d.empty ? "This tab has no rows." : <><strong>{fmtInt(d.rows_total)} rows</strong> on the {d.tab.trim()} tab. This tab lists supplier terms, not bills; pick an older dated list in 'Dues list' to see bill totals.</>} />
+      <FilterBar active={f.active} onReset={f.reset}>
+        <MultiSelect label="Dues list" options={d.tabs} value={f.values.tab} onChange={(v) => f.set("tab", v)} single allLabel={d.tab} pretty={(x) => x.trim()} />
+        {d.options?.vendor && <MultiSelect label="Supplier" options={d.options.vendor} value={f.values.supplier} onChange={(v) => f.set("supplier", v)} />}
+        <ExtraFilters f={f} options={d.options} periodLabel={undefined} dateOf="date" search="Search supplier, agency, remarks…" />
+      </FilterBar>
+      <Notices items={d.notices} />
+      {d.empty ? (
+        <Empty title="No rows" />
+      ) : (
+        <>
+          <KpiStrip kpis={d.kpis} cols={Math.min(4, d.kpis.length)} />
+          <Section title="All rows" sub="As in the sheet, live">
+            <Panel flush>
+              <DataTable table={d.tables.rows} name="dues_sheet" maxRows={25} titleCaseFirst={false} />
+            </Panel>
+          </Section>
+        </>
+      )}
+    </>
+  );
+}
+
 export default function Dues() {
   const f = useFilters(KEYS);
-  const q = useDashboard<DuesData>("/dues", { ...f.values, tab: f.values.tab[0] ?? "" });
+  const q = useDashboard<DuesData>("/dues", { ...f.values, tab: f.values.tab[0] || "__current__" });
   return (
     <div className="page">
       <PageState q={q}>
         {(d) => {
+          if (d.mode === "sheet") return <SheetTab d={d as unknown as OtvData} f={f} />;
           const s = d.summary;
           return (
             <>

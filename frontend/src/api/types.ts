@@ -142,6 +142,7 @@ export interface VendorsData extends Envelope {
 }
 
 export interface DuesData extends Envelope {
+  mode?: "sheet";
   empty?: boolean;
   options: Options;
   title: string;

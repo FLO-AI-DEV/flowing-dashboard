@@ -95,7 +95,7 @@ def today_dashboard(sources: dict, now: pd.Timestamp, role: str = "") -> dict:
 
     # ---------------------------------------------------------------- dues
     p, _ = sources.get("dues", (None, None))
-    if p is not None and not p["d"].empty:
+    if p is not None and "d" in p and not p["d"].empty and (t - p["d"]["bill_date"].max()).days <= 120:
         b = p["d"].copy()
         terms = p.get("terms")
         b["key"] = b["party"].map(norm_key)

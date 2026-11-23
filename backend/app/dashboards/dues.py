@@ -38,6 +38,14 @@ def header_row(grid, scan=15):
     return None
 
 
+def is_stale(p, today, days: int = 120) -> bool:
+    """True when a parsed dues list has no bill from the last `days` days (an old archive list, not current dues)."""
+    if not p or "d" not in p:
+        return True
+    latest = p["d"]["bill_date"].max() if len(p["d"]) else pd.NaT
+    return bool(pd.isna(latest) or (today - latest).days > days)
+
+
 def parse_terms(grid) -> pd.DataFrame:
     """'Updated Sheet': first column = supplier, then Agency / Days / Discount (%) / Agency Discount."""
     if not grid:

@@ -168,6 +168,8 @@ class DataStore:
             return d
         if kind == "dues":
             p, err = dus.parse_dues(entries[0].value, entries[1].value if len(entries) > 1 and entries[1] else None)
+            if err and dus.header_row(entries[0].value) is None and entries[0].value:
+                return {"sheet": entries[0].value}      # a terms / queries tab: no bills, shown as a plain table
             if err:
                 raise SheetAccessError(err)
             return p

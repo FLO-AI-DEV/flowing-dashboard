@@ -31,7 +31,7 @@ from .assistant.fmt import value as fmt_value
 from .assistant.gemini import GeminiInterpreter
 from .assistant.memory import AnswerCache, ChatMemory
 from .config import SHEET_REGISTRY, get_settings
-from .core import FY_LABEL, FY_MONTH_LABELS, MONTHNO_TO_LABEL, now_ist, today_ist
+from .core import find_tab, FY_LABEL, FY_MONTH_LABELS, MONTHNO_TO_LABEL, now_ist, today_ist
 from .dashboards import dues as dus
 from .dashboards import enquiry as enq
 from .dashboards import extra as ex
@@ -247,13 +247,35 @@ def vendors(extra: Extra, month: Multi = [], department: Multi = [], category: M
 
 @app.get("/api/dues", dependencies=[Depends(require_auth)])
 def dues(extra: Extra, tab: str = "", supplier: Multi = [], agency: Multi = []):
+    """tab="__current__" (what the Supplier dues page sends) opens the first current tab of the sheet
+    (SHEET_REGISTRY["dues"]["featured_tabs"]); an empty tab keeps the original bill list (the chatbot uses that)."""
     store = get_store()
+    tabs = _dues_tabs(store)
+    if tab == "__current__":
+        tab = tabs[0] if tabs and tabs[0] in store.all_tabs("dues") and _is_featured(tabs[0]) else ""
     ds = store.dataset("dues", tab or None)
-    f = {**extra, "supplier": _clean(supplier), "agency": _clean(agency)}
-    body = _with_period(dus.dues_dashboard(_need(ds), f, today_ist()), f)
+    p = _need(ds)
+    if "sheet" in p:        # a terms / queries tab: no bills, so a plain table with its own filters
+        f = {**extra, "vendor": _clean(supplier), "status": []}
+        body = _with_period(gen.otv_dashboard(p["sheet"], f), f)
+        body["mode"] = "sheet"
+    else:
+        f = {**extra, "supplier": _clean(supplier), "agency": _clean(agency)}
+        body = _with_period(dus.dues_dashboard(p, f, today_ist()), f)
     body["tab"] = ds.tabs[0] if ds.tabs else ""
-    body["tabs"] = store.all_tabs("dues")
+    body["tabs"] = tabs
     return _envelope(body, ds)
+
+
+def _is_featured(title: str) -> bool:
+    return any(find_tab([title], n) for n in SHEET_REGISTRY["dues"].get("featured_tabs", []))
+
+
+def _dues_tabs(store) -> list[str]:
+    """The current tabs first (in the order set in config.py), then every other tab of the sheet."""
+    all_ = store.all_tabs("dues")
+    first = [t for n in SHEET_REGISTRY["dues"].get("featured_tabs", []) for t in [find_tab(all_, n)] if t]
+    return first + [t for t in all_ if t not in first]
 
 
 @app.get("/api/order-to-vendors", dependencies=[Depends(require_auth)])

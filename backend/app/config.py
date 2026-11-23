@@ -25,6 +25,10 @@ SHEET_REGISTRY: dict[str, dict] = {
         "source_tabs": [],
         # supplier credit days / discount / agency
         "terms_tabs": ["Updated Sheet", "List of creditor's"],
+        # The current tabs of this sheet. The Supplier dues page opens on the first one and lists these before the
+        # old dated bill lists (those stay available in the same list, after these).
+        "featured_tabs": ["Updated Sheet", "FIF0 Querries", "List of creditor's", "MM Agency Brokerage", "Begani",
+                          "Raghani Ahemdabad"],
     },
     "order_to_vendors": {
         "name": "Order to Vendors",

@@ -67,7 +67,7 @@ def _overview(sources: dict, months: list[str], today, f: dict) -> dict:
                                   "overdue_total": o["overdue_total"]}
 
     p, _ = sources["dues"]
-    if p is not None:
+    if p is not None and not dus.is_stale(p, today):
         du = dus.dues_dashboard(p, f, today)
         if not du.get("empty"):
             s = du["summary"]

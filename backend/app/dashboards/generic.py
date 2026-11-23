@@ -88,11 +88,15 @@ def sheet_view(grid, q: str = "", limit: int = 2000) -> dict:
     return {"header_row": h + 1, "total": int(total), "shown": int(min(total, limit)), "table": tb}
 
 
-def _col(cols, *names):
+def _col(cols, *names, exact=False):
+    """The column called one of `names` (whole name, in the order given); failing that, one whose name contains it.
+    exact=True skips the second step."""
     keys = {norm_key(c): c for c in cols}
     for n in names:
         if norm_key(n) in keys:
             return keys[norm_key(n)]
+    if exact:
+        return None
     for n in names:
         for k, c in keys.items():
             if norm_key(n) in k:
@@ -105,8 +109,11 @@ def otv_dashboard(grid, f: dict) -> dict:
     if df.empty:
         return {"empty": True, "notices": [notice("This tab has no rows.", "info")], "kpis": [], "options": {}}
     t, fmts = typed(df)
-    vendor = _col(t.columns, "Vendor Name", "Vender Name", "Vendor", "Vender", "Party Name", "Party", "Supplier", "Fabricator")
-    status = _col(t.columns, "Status", "Order Status", "Stage")
+    # whole column names first, so "Supplier Name" wins over a column that merely contains the word ("PO SENT TO VENDOR")
+    names = ("Vendor Name", "Vender Name", "Vendor", "Vender", "Party Name", "Party", "Parties", "Supplier Name",
+             "Supplier", "Fabricator", "Name of Supplier")
+    vendor = _col(t.columns, *names, exact=True) or _col(t.columns, *names)
+    status = _col(t.columns, "Status", "Order Status", "Stage", "PO Sent To Vendor", exact=True)         or _col(t.columns, "Status", "Order Status", "Stage")
     amount = next((c for c in [_col(t.columns, "Order Amt", "Order Amount", "Amount", "Amt", "Value", "Total")]
                    if c and fmts.get(c) in ("int", "dec")), None)
     qty = next((c for c in [_col(t.columns, "Order Qty", "Qty", "Quantity", "Pcs")] if c and fmts.get(c) in ("int", "dec")), None)
