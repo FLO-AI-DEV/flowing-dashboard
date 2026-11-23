@@ -22,6 +22,7 @@ import requests
 from . import fmt
 from .calc import CalcError, calculate
 from .engine import Snapshot, Vocabulary, kpi_list, parse, table_list
+from .memory import MAX_TURNS
 from .pages import PAGES
 
 log = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ Answer ONLY from FACTS (read live from the company's Google Sheets) and this cha
 - Be brief: 1-3 sentences, or a short bullet list for a breakdown. No preamble, no tables.
 - Users write in English, Hindi or Hinglish, often with typos or no punctuation: work out what they mean and reply in the same style.
 - If a question is ambiguous, state your assumption in a few words (or ask one short question if it truly can't be answered).
+- For a follow-up, use the resolved scope and measure in FACTS. Use current figures from matching page filters or matching table rows.
 - If FACTS don't contain what is asked, say so and name the dashboard page that would show it. Never invent figures.
 - Pages: Orders (PO lines: ordered/received/pending/overdue), Vendors (scorecard), Supplier dues (payables), Order to vendors."""
 
@@ -76,25 +78,38 @@ def _cell(v, col) -> str:
     return _num(v, col.get("format"), unit) if isinstance(v, (int, float)) else str(v)
 
 
-def build_facts(assistant, question: str, today_month: str | None) -> tuple[str, str | None]:
-    """Compact text snapshot of the dashboard for one question. Returns (facts, most relevant page)."""
+def build_facts(assistant, question: str, today_month: str | None, context: dict | None = None,
+                *, follow_up_only: bool = False) -> tuple[str, str | None, dict] | None:
+    """Build current dashboard facts and the resolved context to carry into the next turn."""
     snap = Snapshot(assistant.fetch)
     vocab = Vocabulary(snap)
     q = parse(question, vocab, today_month)
+    changes_scope = bool(q.entities or q.months)
+    has_measure = bool(q.metric_toks)
+    assistant._inherit(q, context, vocab)
+    if follow_up_only and not (changes_scope and q.inherited):
+        return None
+
+    measure = (context or {}).get("metric") if q.inherited and not has_measure else None
+    measure = measure or " ".join(dict.fromkeys(t for t in q.toks if t in q.metric_toks))
     pages = list(dict.fromkeys([p for p in q.pages if p in FACT_PAGES] + FACT_PAGES))
     out = [f"Months in the data: {', '.join(vocab.months) or 'none'}. Current month: {today_month or '-'}."]
     named = [e.display for e in q.entities if e.type != "month"]
     if named or q.months:
-        out.append(f"Question mentions: {', '.join(named + q.months)}.")
-    size = len(out[0])
+        out.append(f"Resolved scope: {', '.join(named + q.months)}.")
+    if q.inherited and measure:
+        out.append(f"Measure for this follow-up: {measure}.")
+    size = sum(len(line) for line in out)
     for page in pages:
-        f = assistant._filters(page, q) or {}
+        f = assistant._filters(page, q)
         try:
-            data = snap.get(page, f)
+            data = snap.get(page, f or {})
         except Exception as e:  # noqa: BLE001 - a sheet that can't be read is reported, not fatal
             out.append(f"## {PAGES[page].label}: not available ({e})")
             continue
         head = f"## {PAGES[page].label} page" + (f" (filtered: {json.dumps(f, ensure_ascii=False)})" if f else "")
+        if f is None:
+            head += " (unfiltered; this page cannot apply the requested scope)"
         lines = [head]
         for k in kpi_list(data):
             hint = f" ({k['hint']})" if k.get("hint") else ""
@@ -119,7 +134,9 @@ def build_facts(assistant, question: str, today_month: str | None) -> tuple[str,
         if size >= MAX_FACTS:
             break
     first = next(iter(q.pages), None)
-    return "\n".join(out), first
+    resolved = assistant._ctx(q, None, "analysis")
+    resolved.update(page=first, metric=measure or None)
+    return "\n".join(out), first, resolved
 
 
 class GeminiAnalyst:
@@ -153,7 +170,7 @@ class GeminiAnalyst:
 
     def answer(self, question: str, facts: str, history: list[tuple[str, str]]) -> str | None:
         contents = []
-        for q, a in history[-4:]:
+        for q, a in history[-MAX_TURNS:]:
             contents.append({"role": "user", "parts": [{"text": q}]})
             contents.append({"role": "model", "parts": [{"text": a[:600]}]})
         contents.append({"role": "user", "parts": [{"text": f"FACTS:\n{facts}\n\nQUESTION: {question}"}]})

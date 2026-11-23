@@ -296,19 +296,24 @@ class ChatReset(BaseModel):
     session_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]*$")
 
 
-def _analyst_reply(question: str, history: list) -> dict | None:
+def _analyst_reply(question: str, history: list[tuple[str, str]], context: dict | None,
+                   *, follow_up_only: bool = False) -> dict | None:
     analyst = get_analyst()
     if analyst is None:
         return None
     try:
-        facts, page = build_facts(get_assistant(), question, MONTHNO_TO_LABEL.get(now_ist().month))
+        snapshot = build_facts(get_assistant(), question, MONTHNO_TO_LABEL.get(now_ist().month),
+                               context, follow_up_only=follow_up_only)
     except Exception:  # noqa: BLE001 - never break the chat because a sheet is down
         return None
+    if snapshot is None:
+        return None
+    facts, page, resolved = snapshot
     text = analyst.answer(question, facts, history)
     if not text:
         return None
     p = SHEET_PAGES.get(page) if page else None
-    return {"answer": text, "page": p[0] if p else None, "page_label": p[1] if p else None, "context": {},
+    return {"answer": text, "page": p[0] if p else None, "page_label": p[1] if p else None, "context": resolved,
             "understood": True, "intent": "analysis", "engine": "gemini"}
 
 
@@ -320,19 +325,21 @@ SHEET_PAGES = {"orders": ("/orders", "Orders"), "vendors": ("/vendors", "Vendors
 def chat(body: ChatIn):
     """Flo-Wing Assistant: answers a question from the dashboard's own numbers (read-only).
 
-    Order: calculations / "why" questions go to the Gemini analyst (when a key is set); everything else is answered
-    by the rules first, and the analyst only gets what the rules could not place. The chat's earlier turns
-    (session_id) are kept in memory so follow-ups work.
+    Calculations and follow-ups that repeat a calculation go to the Gemini analyst when configured.
+    Both engines use the chat's previous dashboard context to resolve follow-ups.
     """
-    history = CHAT_MEMORY.history(body.session_id)
+    history, previous_context = CHAT_MEMORY.recall(body.session_id)
+    context = body.context or previous_context
+    analysis = wants_analysis(body.message)
     out = None
-    if wants_analysis(body.message):
-        out = _analyst_reply(body.message, history)
+    if analysis or (context and context.get("intent") == "analysis"):
+        out = _analyst_reply(body.message, history, context, follow_up_only=not analysis)
     if out is None:
-        out = get_assistant().answer(body.message, body.context)
+        out = get_assistant().answer(body.message, context)
         if not out.get("understood"):
-            out = _analyst_reply(body.message, history) or out
-    CHAT_MEMORY.add(body.session_id, body.message, out.get("answer", ""))
+            out = _analyst_reply(body.message, history, context) or out
+    resolved = out.get("context") if out.get("understood") else None
+    CHAT_MEMORY.add(body.session_id, body.message, out.get("answer", ""), resolved)
     _log_question(body.message, out)
     return out
 

@@ -210,7 +210,7 @@ _THANKS = re.compile(r"^\s*(thanks|thank you|thx|ty|dhanyavad|shukriya|great|nic
 _HELP = re.compile(r"\b(what can you do|help|how (do|can) i use you|who are you|what do you do|kya kar sakte)\b")
 _HOWTO = re.compile(r"\b(how (do|does|can|to|is)|kaise|where is the|can i|is there)\b")
 _FOLLOW = re.compile(r"^\s*(and|what about|how about|aur|or|same for|also|uska|unka|iska|for)\b")
-_PRONOUN = re.compile(r"\b(her|his|their|its|she|he|they|uska|unka|iska|inka|same)\b")
+_PRONOUN = re.compile(r"\b(her|his|their|its|she|he|they|uska|uski|uske|unka|unki|unke|iska|inka|same)\b")
 _PO_NO = re.compile(r"\b(?:fpo\s*/?\s*)?(\d{3,6})\b")
 _PLURAL_DIMS = "|".join(DIMENSION_PLURALS)
 _EACH = re.compile(rf"\b(?:of|for|by|across|among) (?:all |each |every |the |all the )?(?:{_PLURAL_DIMS})\b|"
@@ -345,7 +345,7 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
     q.entities = [e for e in q.entities if not ((e.type, e.key) in seen or seen.add((e.type, e.key)))]
 
     rest = " ".join(w for j, w in enumerate(words) if not used[j])
-    q.toks = tokens(rest)
+    q.toks = [token for token in tokens(rest) if token != "also" and not _PRONOUN.fullmatch(token)]
     q.dims = list(dict.fromkeys(DIMENSION_WORDS[x] for x in q.toks if x in DIMENSION_WORDS))
     m = re.search(r"\b(?:top|bottom|best|worst|highest|lowest)\s*(\d{1,2}|three|five|ten)\b", t) or \
         re.search(r"\b(\d{1,2})\s*(?:top|best|highest|lowest|worst)\b", t)
@@ -524,12 +524,14 @@ class Assistant:
         if not ctx or not isinstance(ctx, dict):
             return
         t = norm(q.text)
-        follow = bool(_FOLLOW.search(t)) or len(q.toks) <= 1
+        refers_back = bool(_FOLLOW.search(t) or _PRONOUN.search(t))
+        follow = refers_back or (len(q.toks) <= 1 and not q.entities and not q.months
+                                 and not re.search(r"\b(total|overall|all)\b", t))
         unit_switch = bool(q.metric_toks) and q.metric_toks <= {"inr", "qty"}   # "paise me bata", "pcs me batao"
         if unit_switch and ctx.get("metric") and not q.entities and not q.months:
             prev = label_tokens(str(ctx["metric"])) - {"qty", "inr"}
             q.toks = q.toks + list(prev or label_tokens(str(ctx["metric"])))
-            if ctx.get("page") in PAGES and ctx["page"] not in q.pages:
+            if not q.pages and ctx.get("page") in PAGES:
                 q.pages.append(ctx["page"])
             for ref in ctx.get("entities") or []:
                 e = vocab.entities.get((ref.get("type"), name_key(str(ref.get("value", "")))))
@@ -541,20 +543,22 @@ class Assistant:
         if not q.metric_toks and ctx.get("metric") and (q.entities or q.months or follow) and q.intent in (
                 "value", "compare", "rank", "trend"):
             q.toks = q.toks + list(label_tokens(str(ctx["metric"])))
-            if ctx.get("page") in PAGES and ctx["page"] not in q.pages:
+            if not q.pages and ctx.get("page") in PAGES:
                 q.pages.append(ctx["page"])
             if q.intent == "value" and ctx.get("intent") in ("rank", "trend") and not q.entities and not q.months:
                 q.intent = ctx["intent"]
                 q.dims = q.dims or ([ctx["dim"]] if ctx.get("dim") else [])
             q.inherited = True
-        if (follow or _PRONOUN.search(t)) and q.metric_toks:
+        if (follow or q.inherited) and q.metric_toks:
             if not q.entities:
                 for ref in ctx.get("entities") or []:
                     e = vocab.entities.get((ref.get("type"), name_key(str(ref.get("value", "")))))
                     if e:
                         q.entities.append(e)
-            if not q.months and _PRONOUN.search(t):
+            if not q.months:
                 q.months = [m for m in ctx.get("months") or [] if m in vocab.months]
+            if not q.pages and ctx.get("page") in PAGES:
+                q.pages.append(ctx["page"])
 
     def _filters(self, page: str, q: Query, skip_type: str | None = None) -> dict | None:
         """API filters for this page, or None if a named thing can't be applied there."""

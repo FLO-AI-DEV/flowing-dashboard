@@ -9,8 +9,9 @@ from __future__ import annotations
 import threading
 import time
 from collections import OrderedDict, deque
+from copy import deepcopy
 
-MAX_TURNS = 8            # question/answer pairs kept per chat
+MAX_TURNS = 10           # question/answer pairs kept per chat
 MAX_SESSIONS = 500       # oldest chats are dropped beyond this
 SESSION_TTL = 6 * 3600   # idle chats are forgotten after 6 hours
 
@@ -18,7 +19,7 @@ SESSION_TTL = 6 * 3600   # idle chats are forgotten after 6 hours
 class ChatMemory:
     def __init__(self, max_turns: int = MAX_TURNS, max_sessions: int = MAX_SESSIONS, ttl: int = SESSION_TTL):
         self.max_turns, self.max_sessions, self.ttl = max_turns, max_sessions, ttl
-        self._data: "OrderedDict[str, tuple[float, deque]]" = OrderedDict()
+        self._data: OrderedDict[str, tuple[float, deque[tuple[str, str, dict | None]]]] = OrderedDict()
         self._lock = threading.Lock()
 
     def _prune(self, now: float):
@@ -28,19 +29,31 @@ class ChatMemory:
             self._data.popitem(last=False)
 
     def history(self, sid: str | None) -> list[tuple[str, str]]:
+        return self.recall(sid)[0]
+
+    def recall(self, sid: str | None) -> tuple[list[tuple[str, str]], dict | None]:
         if not sid:
-            return []
+            return [], None
         with self._lock:
             hit = self._data.get(sid)
-            return list(hit[1]) if hit else []
+            if hit is None:
+                return [], None
+            seen, turns = hit
+            if time.time() - seen > self.ttl:
+                del self._data[sid]
+                return [], None
+            context = next((ctx for _, _, ctx in reversed(turns) if ctx), None)
+            return [(question, answer) for question, answer, _ in turns], deepcopy(context)
 
-    def add(self, sid: str | None, question: str, answer: str):
+    def add(self, sid: str | None, question: str, answer: str, context: dict | None = None):
         if not sid:
             return
         now = time.time()
         with self._lock:
-            _, turns = self._data.pop(sid, (now, deque(maxlen=self.max_turns)))
-            turns.append((question[:500], answer[:1200]))
+            seen, turns = self._data.pop(sid, (now, deque(maxlen=self.max_turns)))
+            if now - seen > self.ttl:
+                turns.clear()
+            turns.append((question[:500], answer[:1200], deepcopy(context)))
             self._data[sid] = (now, turns)
             self._prune(now)
 
