@@ -206,6 +206,8 @@ _EXPLAIN = re.compile(r"\b(what is meant|what does .* mean|meaning of|what is th
 _WHERE = re.compile(r"\b(where|kahan|kaha|kidhar|which page|kis page|kaunse page|konse page)\b")
 _LIST = re.compile(r"\b(list|names|name all|kaun kaun|kon kon|which are the|show all|all the)\b")
 _COMPARE = re.compile(r"\b(vs|versus|compare|comparison|compared|difference|mukabla|between)\b")
+_LOWER_RANK_WORDS = label_tokens("less lower fewer kam")
+_LOWER_COMPARISON = re.compile(r"\b(?:(?:less|lower|fewer) than|how much less|kitna kam|se kam)\b")
 _GREET = re.compile(r"^\s*(hi+|hello|hey|namaste|namaskar|hola|good (morning|afternoon|evening)|yo)\b[\s!.?]*$")
 _THANKS = re.compile(r"^(?:(?:thanks|thank you)(?: a lot| so much| very much)?|thx|ty|dhanyavad|shukriya|"
                      r"great|nice|ok|okay|cool)[\s!.?]*$")
@@ -376,6 +378,9 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
     rest = " ".join(w for j, w in enumerate(words) if not used[j])
     q.toks = [token for token in tokens(rest) if token != "also" and not _PRONOUN.fullmatch(token)]
     q.dims = list(dict.fromkeys(DIMENSION_WORDS[x] for x in q.toks if x in DIMENSION_WORDS))
+    lower_words = q.metric_toks & _LOWER_RANK_WORDS
+    if q.dims and lower_words and q.metric_toks - lower_words and not (_COMPARE.search(t) or _LOWER_COMPARISON.search(t)):
+        q.toks = [token for token in q.toks if token not in lower_words] + [BOTTOM]
     m = re.search(r"\b(?:top|bottom|best|worst|highest|lowest)\s*(\d{1,2}|three|five|ten)\b", t) or \
         re.search(r"\b(\d{1,2})\s*(?:top|best|highest|lowest|worst)\b", t)
     if m:
@@ -427,6 +432,8 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
     elif q.dims and re.search(r"\b(which|kaun|kon|konsa|kaunsa|who)\b", t) and q.dims[0] not in {
             e.type for e in q.entities}:
         q.intent = "rank"
+    if q.intent == "rank" and m is None and q.n == 1 and _LIST.search(t):
+        q.n = 5
     # "best vendor" / "worst fabricator" with no measure: rank by on-time rate, not by size
     if q.intent == "rank" and q.dims and q.dims[0] in QUALITY and not q.metric_toks and _QUALITY.search(t):
         q.toks += tokens(QUALITY[q.dims[0]])

@@ -108,6 +108,26 @@ def test_follow_up(chain, expected):
     assert expected.lower() in r["answer"].lower(), f"{chain!r} -> {r['answer'][:160]!r}"
 
 
+def test_list_suppliers_with_less_overdue_returns_the_lowest_amounts_first():
+    dashboard = {"tables": {"vendors": {
+        "columns": [{"key": "Vendor", "label": "Vendor"}, {"key": "Overdue", "label": "Overdue", "format": "inr"}],
+        "rows": [["SIXTH SUPPLIER", 900], ["THIRD SUPPLIER", 125], ["FIRST SUPPLIER", 0],
+                 ["FIFTH SUPPLIER", 700], ["SECOND SUPPLIER", 25], ["FOURTH SUPPLIER", 400]],
+    }}}
+    assistant = engine.Assistant(lambda page, filters: dashboard if page == "orders" else {})
+
+    for question in ("list to supplier who has less overdue", "list suppliers with lower overdue"):
+        reply = assistant.answer(question)
+        assert reply["understood"] and reply["intent"] == "rank" and reply["page"] == "/orders"
+        assert reply["answer"].splitlines()[1:] == [
+            "1. **FIRST SUPPLIER**: ₹0", "2. **SECOND SUPPLIER**: ₹25", "3. **THIRD SUPPLIER**: ₹125",
+            "4. **FOURTH SUPPLIER**: ₹400", "5. **FIFTH SUPPLIER**: ₹700",
+        ]
+
+    assert "FIRST SUPPLIER" in assistant.answer("which supplier has less overdue")["answer"]
+    assert "SIXTH SUPPLIER" in assistant.answer("which supplier has most overdue")["answer"]
+
+
 @pytest.fixture
 def factory_visit_suppliers(monkeypatch):
     source = DemoSheetSource()
