@@ -33,6 +33,34 @@ def inr_short(v: float) -> str:
 
 
 UNIT_WORDS = {"pcs": "pcs", "mtr": "mtr", "days": "days", "pos": "POs", "po": "POs"}
+_REPORTED_FIGURE = re.compile(
+    r"(?<![\w,./])(?P<sign>[-+−]?)(?P<currency>₹\s*|(?:inr|rs\.?)\s+)?"
+    r"(?P<number>\d+(?:,\d+)*(?:\.\d+)?)(?:\s*(?P<unit>%|percent\b|cr\b|crore\b|l\b|lakh\b|lac\b|"
+    r"pcs\b|pieces\b|mtr\b|days?\b|pos\b|points\b))?(?![\w,/]|[.-]\d)", re.I,
+)
+_RUPEE_SCALE = {"cr": 10_000_000, "crore": 10_000_000, "l": 100_000, "lakh": 100_000, "lac": 100_000}
+
+
+def reported_result(answer: str) -> dict | None:
+    """Recover a single displayed result from an analyst or an older chat answer."""
+    figures = [m for prefix, part, suffix in re.findall(r"(₹\s*)?\*\*([^*]+)\*\*(\s*%)?", answer)
+               if (m := _REPORTED_FIGURE.fullmatch(prefix + part.strip() + suffix))]
+    if not figures:
+        figures = list(_REPORTED_FIGURE.finditer(answer))
+        figures = [m for m in figures if m["currency"] or m["unit"]] or figures
+    if len(figures) != 1:
+        return None
+    figure = figures[0]
+    unit = (figure["unit"] or "").lower()
+    number = figure["sign"].replace("−", "-") + figure["number"]
+    raw = float(number.replace(",", "")) * _RUPEE_SCALE.get(unit, 1)
+    if not math.isfinite(raw):
+        return None
+    if unit in ("%", "percent"):
+        return {"value": raw, "unit": "%", "text": f"{number}%"}
+    if figure["currency"] or unit in _RUPEE_SCALE:
+        unit = "₹"
+    return {"value": raw, "unit": unit, "text": figure[0]}
 
 
 def pretty(label: str) -> str:

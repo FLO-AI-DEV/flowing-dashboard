@@ -16,11 +16,12 @@ import re
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
+from ..core import today_ist
 from . import fmt
 from .pages import (DIMENSION_PLURALS, DIMENSION_WORDS, FEATURES, HELP, HOME_PAGE, OPTION_TYPES, PAGES, PLURALS,
                     QUALITY, ROW_TYPES, TYPE_NAMES)
 from .text import (BOTTOM, CONTEXT_WORDS, GENERIC_NAME_WORDS, HOWMANY, MARKERS, MONTH_ALIASES, STOP, TOP, TREND, WORDS,
-                   label_tokens, name_key, norm, raw_tokens, similar, tokens)
+                   is_day_expression, label_tokens, name_key, norm, parse_day, raw_tokens, similar, tokens)
 
 Fetch = Callable[[str, dict], dict]
 
@@ -230,9 +231,20 @@ _DASHBOARD_TERMS = label_tokens(
 _DASHBOARD_PHRASES = re.compile(r"\b(?:credit days|supplier terms|days overdue)\b")
 _FEATURE_TERMS = {word for triggers, _ in FEATURES for word in triggers}
 _FOLLOW_UP_TERMS = label_tokens("inr qty rate difference ratio average")
+_GENERIC_LABEL_TERMS = label_tokens("amount date day description detail name number remark row status time type")
+_FACTORY_VISIT = re.compile(r"\b(?:factory[- ]visit(?:s|ed)?|visited (?:the |a |their )?factor(?:y|ies)|"
+                            r"factor(?:y|ies) (?:was |were )visited)\b")
+_DATE_FOLLOW_PREFIX = re.compile(r"^(?:(?:and|aur|और|also) )?(?:(?:what about|how about|same(?: list)? for) )?"
+                                 r"(?:(?:for|on|date) )?")
+_DATE_FOLLOW_SUFFIX = re.compile(r" (?:ke liye|ka|ki|ko|के लिए)$")
 _REPEAT = re.compile(r"(?:same(?: again)?|again|(?:repeat|say|show) (?:it|that)(?: again)?)(?: please)?[?.!]*")
-_SCOPE_REPLY = ("I can help with the Flo-Wing dashboard. "
-                "Ask me about orders, vendors, or supplier dues.")
+_EXPLAIN_PREVIOUS = re.compile(
+    r"(?:explain|elaborate on|break down) (?:it|this|that|(?:this |that |the |your )?(?:previous )?(?:answer|result))|"
+    r"what does (?:it|this|that) mean|how (?:did you (?:get|calculate)|was) (?:it|this|that)(?: calculated)?|"
+    r"(?:iska|uska|yeh) (?:matlab|kaise)|(?:ise|isko) samjhao"
+)
+_SCOPE_REPLY = ("What would you like to look up in the Flo-Wing dashboard? "
+                "You can ask in your own words, like “Who visited the factory yesterday?” or “How much is still pending?”")
 
 
 def _month_index(word: str) -> int | None:
@@ -425,7 +437,36 @@ def is_unrelated_request(question: str) -> bool:
     return bool(_UNRELATED.search(norm(question)))
 
 
-def is_dashboard_question(q: Query, context: dict | None) -> bool:
+def _is_date_follow_up(text: str) -> bool:
+    day_text = _DATE_FOLLOW_PREFIX.sub("", text.rstrip("?.!"), count=1)
+    return is_day_expression(_DATE_FOLLOW_SUFFIX.sub("", day_text))
+
+
+def is_factory_visit_question(question: str, context: dict | None = None) -> bool:
+    text = norm(question)
+    return bool(_FACTORY_VISIT.search(text) or (
+        context and context.get("intent") == "factory_visits" and _is_date_follow_up(text)
+    ))
+
+
+def _presentation_style(question: str) -> str | None:
+    text = norm(question).rstrip("?.!")
+    text = re.sub(r"^(?:please |(?:can|could|would) you )+|(?:,? please| pls| plz)$", "", text).strip()
+    if _REPEAT.fullmatch(text):
+        return "repeat"
+    if _EXPLAIN_PREVIOUS.fullmatch(text):
+        return "detail"
+    if _TERSE.search(text) and set(_TERSE.sub(" ", text).split()) <= {
+        "in", "it", "this", "that", "me", "say", "give", "tell", "show", "answer", "summarize",
+        "explain", "make", "keep", "bas", "sirf", "batao", "bolo",
+    }:
+        return "terse"
+    if _DETAIL.fullmatch(text) or re.fullmatch(r"explain (?:it|this|that) in detail", text):
+        return "detail"
+    return None
+
+
+def is_dashboard_question(q: Query, context: dict | None, vocab: Vocabulary) -> bool:
     """Check the current question before inheriting a previous turn's dashboard scope."""
     t = norm(q.text)
     if q.pages or q.intent == "record" or _DASHBOARD_PHRASES.search(t) or label_tokens(t) & _DASHBOARD_TERMS:
@@ -437,13 +478,16 @@ def is_dashboard_question(q: Query, context: dict | None) -> bool:
     words = set(raw_tokens(t))
     if words & _FEATURE_TERMS and (words - STOP - {"how", "kaise"}) <= (_FEATURE_TERMS | {"csv"}):
         return True
+    if q.metric_toks:
+        for label in vocab.labels:
+            measure = label_tokens(label) - {"rate", "qty", "inr"}
+            if measure <= q.metric_toks and measure - _GENERIC_LABEL_TERMS:
+                return True
     if not isinstance(context, dict) or not context.get("metric"):
         return False
     if q.months and set(q.toks) <= {"how"}:
         return True
-    if q.style != "normal" and not q.toks:
-        return True
-    return bool(_REPEAT.fullmatch(t) or (q.metric_toks and q.metric_toks <= _FOLLOW_UP_TERMS))
+    return bool(q.metric_toks and q.metric_toks <= _FOLLOW_UP_TERMS)
 
 
 # ------------------------------------------------------------------------------------------------ scoring
@@ -522,10 +566,40 @@ class Assistant:
         self.interpreter = interpreter          # optional Gemini helper (see gemini.py)
 
     # -------------------------------------------------------------------------------------------- public
+    @staticmethod
+    def presentation_reply(question: str, context: dict | None) -> dict | None:
+        style = _presentation_style(question)
+        if style is None:
+            return None
+        answer = (context or {}).get("answer")
+        if not isinstance(answer, str) or not answer:
+            return Assistant._reply("Ask me a dashboard question first, and I can shorten or explain the answer.",
+                                    understood=False, intent="presentation")
+
+        result = context.get("result") if "result" in context else fmt.reported_result(answer)
+        figure = result.get("text") if isinstance(result, dict) else None
+        if style == "terse" and isinstance(figure, str) and figure:
+            answer = figure
+        elif style == "detail":
+            hint = context.get("hint")
+            if isinstance(hint, str) and hint and hint not in answer:
+                answer += f"\n{hint}"
+            calculations = context.get("calculation")
+            if isinstance(calculations, list):
+                for calc in calculations:
+                    if isinstance(calc, dict) and isinstance(calc.get("expression"), str):
+                        answer += f"\nCalculated as {calc['expression']} = {calc.get('result')}."
+
+        page = context.get("page")
+        return Assistant._reply(answer, page if isinstance(page, str) else None, context, intent=style)
+
     def answer(self, question: str, context: dict | None = None) -> dict:
         question = (question or "").strip()[:MAX_QUESTION]
         if not question:
             return self._reply("Please type a question about the dashboard.", understood=False)
+        presentation = self.presentation_reply(question, context)
+        if presentation is not None:
+            return presentation
         t = norm(question)
         if _GREET.match(t):
             return self._reply("Hi! I'm Flo-Wing Assistant. " + HELP, intent="greet")
@@ -534,10 +608,15 @@ class Assistant:
         if is_unrelated_request(t):
             return self._reply(_SCOPE_REPLY, understood=False, intent="out_of_scope")
 
+        if is_factory_visit_question(t, context):
+            return self._factory_visits(question, Snapshot(self.fetch))
+        if _is_date_follow_up(t):
+            return self._reply("What should I look up for that date? For example, factory visits.",
+                               understood=False, intent="clarify")
         snap = Snapshot(self.fetch)
         vocab = Vocabulary(snap)
         q = parse(question, vocab, self.today_month())
-        if not is_dashboard_question(q, context):
+        if not is_dashboard_question(q, context, vocab):
             return self._reply(_SCOPE_REPLY, understood=False, intent="out_of_scope")
         if len(vocab.errors) == len(PAGES):
             return self._reply("I can't read the dashboard data right now (" + next(iter(vocab.errors.values())) +
@@ -561,8 +640,39 @@ class Assistant:
     @staticmethod
     def _reply(answer, page=None, context=None, understood=True, intent="", engine="rules"):
         p = PAGES.get(page) if page else None
+        if context and "question" in context and "answer" not in context:
+            context = {**context, "answer": answer}
         return {"answer": answer, "page": p.path if p else None, "page_label": p.label if p else None,
                 "context": context or {}, "understood": understood, "intent": intent, "engine": engine}
+
+    def _factory_visits(self, question: str, snap: Snapshot) -> dict:
+        page, intent = "order-to-vendors", "factory_visits"
+        day = parse_day(question, today_ist().date())
+        if day is None:
+            return self._reply("Which date should I look up for factory visits? For example, 12 Nov or 12/11/2026.",
+                               page, understood=False, intent=intent)
+        try:
+            data = snap.get(page, {"visit_date": [day.isoformat()]})
+        except DataUnavailable:
+            return self._reply("I can't read the Order to vendors tabs right now. Please try again in a minute.",
+                               page, understood=False, intent=intent)
+        if not data["has_visit_columns"]:
+            return self._reply("I couldn't find the Date, Supplier Name and Selection via columns in Order to vendors.",
+                               page, understood=False, intent=intent)
+
+        suppliers = data["suppliers"]
+        date_label = f"{day.day} {day:%B %Y}"
+        if suppliers:
+            noun = "supplier" if len(suppliers) == 1 else "suppliers"
+            answer = f"**{len(suppliers)} {noun}** marked **Factory Visited** on **{date_label}** in Order to vendors."
+            answer += "\n" + "\n".join(f"• {name}" for name in suppliers)
+        else:
+            answer = f"I found no suppliers marked **Factory Visited** on **{date_label}** in Order to vendors."
+        if data["incomplete"]:
+            answer += "\nSome tabs could not be checked with up-to-date data, so the results may be incomplete."
+        context = {"page": page, "intent": intent, "metric": "Factory visits", "date": day.isoformat(),
+                   "question": question, "result": None}
+        return self._reply(answer, page, context, intent=intent)
 
     def _inherit(self, q: Query, ctx: dict | None, vocab: Vocabulary):
         """Follow-up questions ("and for May?", "what about Rekha?") reuse the previous question's subject."""
@@ -758,9 +868,14 @@ class Assistant:
 
     # -------------------------------------------------------------------------------------------- answers
     def _ctx(self, q: Query, c: Candidate | None, intent: str | None = None) -> dict:
+        result = None
+        if c and c.kind in ("kpi", "cell", "mcell") and q.intent in ("value", "explain"):
+            unit = {"pct": "%", "inr": "₹", "inr_full": "₹"}.get(c.fmt, c.unit)
+            result = {"value": c.value, "unit": unit, "text": c.text()}
         return {"page": c.page if c else None, "metric": c.label if c else None, "intent": intent or q.intent,
                 "entities": [e.ref() for e in q.entities if e.type != "po"], "months": q.months,
-                "dim": c.row if c and c.kind in ("rank", "trend") else None}
+                "dim": c.row if c and c.kind in ("rank", "trend") else None, "question": q.text,
+                "result": result, "hint": c.hint if c and c.hint else None}
 
     def _value(self, q: Query, best: Candidate, cands: list[Candidate]) -> dict:
         val = best.text()

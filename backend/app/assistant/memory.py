@@ -42,8 +42,14 @@ class ChatMemory:
             if time.time() - seen > self.ttl:
                 del self._data[sid]
                 return [], None
-            context = next((ctx for _, _, ctx in reversed(turns) if ctx), None)
-            return [(question, answer) for question, answer, _ in turns], deepcopy(context)
+            history = [(question, answer) for question, answer, _ in turns]
+            for question, answer, context in reversed(turns):
+                if context:
+                    context = deepcopy(context)
+                    context.setdefault("question", question)
+                    context.setdefault("answer", answer)
+                    return history, context
+            return history, None
 
     def add(self, sid: str | None, question: str, answer: str, context: dict | None = None):
         if not sid:

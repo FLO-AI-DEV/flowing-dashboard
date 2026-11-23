@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date, timedelta
 from difflib import SequenceMatcher
 
 # Intent markers. They are kept as tokens so labels such as "Top performer" can still match them.
@@ -113,12 +114,61 @@ MONTH_ALIASES.update({m[:3]: i + 1 for i, m in enumerate(MONTHS)})
 MONTH_ALIASES.update({"sept": 9, "jany": 1, "febuary": 2, "agust": 8, "octuber": 10, "novmber": 11})
 
 _TOKEN = re.compile(r"[a-z0-9%]+(?:[/'.-][a-z0-9]+)*|₹")
+_MONTH_NAMES = "|".join(sorted(MONTH_ALIASES, key=len, reverse=True))
+_RELATIVE_DAYS = {
+    "day before yesterday": -2,
+    "yesterday": -1,
+    "beeta kal": -1,
+    "बीता कल": -1,
+    "today": 0,
+    "aaj": 0,
+    "आज": 0,
+    "tomorrow": 1,
+    "aane wala kal": 1,
+    "आने वाला कल": 1,
+    "day after tomorrow": 2,
+    "kal": None,
+    "कल": None,
+}
+_RELATIVE_DAY_NAMES = "|".join(sorted(_RELATIVE_DAYS, key=len, reverse=True))
+_DAY = re.compile(
+    rf"(?<![\w/-])(?:(?P<relative>{_RELATIVE_DAY_NAMES})|(?P<iso>\d{{4}}-\d{{2}}-\d{{2}})|"
+    rf"(?P<day>\d{{1,2}})(?:st|nd|rd|th)?(?:\s*-?\s*(?P<month>{_MONTH_NAMES})|[/-](?P<number>\d{{1,2}}))"
+    rf"(?:[-/ ,']+(?P<year>\d{{4}}|\d{{2}}))?|"
+    rf"(?P<month_first>{_MONTH_NAMES})\s+(?P<day_last>\d{{1,2}})(?:st|nd|rd|th)?"
+    rf"(?:[, ']+(?P<year_last>\d{{4}}|\d{{2}}))?)(?![\w/-])"
+)
 
 
 def norm(text: str) -> str:
     """Lower case, unify quotes and spaces."""
     t = (text or "").lower().replace("’", "'").replace("‘", "'").replace("–", "-").replace("—", "-")
     return re.sub(r"\s+", " ", t).strip()
+
+
+def is_day_expression(text: str) -> bool:
+    return bool(_DAY.fullmatch(norm(text)))
+
+
+def parse_day(text: str, today: date) -> date | None:
+    """Resolve a calendar date relative to today or read an explicit day-first date."""
+    matches = list(_DAY.finditer(norm(text)))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    try:
+        if relative := match["relative"]:
+            offset = _RELATIVE_DAYS[relative]
+            return today + timedelta(days=offset) if offset is not None else None
+        if match["iso"]:
+            return date.fromisoformat(match["iso"])
+        year = today.year
+        if year_text := (match["year"] or match["year_last"]):
+            year = int(year_text) + (2000 if len(year_text) == 2 else 0)
+        month = int(match["number"]) if match["number"] else MONTH_ALIASES[match["month"] or match["month_first"]]
+        return date(year, month, int(match["day"] or match["day_last"]))
+    except ValueError:
+        return None
 
 
 def apply_phrases(text: str) -> str:

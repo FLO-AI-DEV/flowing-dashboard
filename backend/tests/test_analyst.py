@@ -97,7 +97,8 @@ class _Resp:
 class FakeGemini:
     """First asks the calculator, then answers with the result it got back."""
 
-    def __init__(self):
+    def __init__(self, expression="round(1304325/3541335*100, 1)"):
+        self.expression = expression
         self.bodies = []
 
     def post(self, url, json=None, timeout=None, headers=None):
@@ -105,9 +106,9 @@ class FakeGemini:
         last = json["contents"][-1]["parts"][0]
         if "functionResponse" in last:
             r = last["functionResponse"]["response"]["result"]
-            return _Resp({"role": "model", "parts": [{"text": f"Pending is **{r:.1f}%** of ordered."}]})
+            return _Resp({"role": "model", "parts": [{"text": f"Pending is **{r:g}%** of ordered."}]})
         return _Resp({"role": "model", "parts": [{"functionCall": {"name": "calculate",
-                                                                   "args": {"expression": "round(1304325/3541335*100, 1)"}}}]})
+                                                                   "args": {"expression": self.expression}}}]})
 
 
 def test_analyst_uses_calculator_and_history(monkeypatch):
@@ -128,7 +129,9 @@ def test_analyst_uses_calculator_and_history(monkeypatch):
     expected_turns = earlier_turns[1:] + [("total pending", pending["answer"])]
     sent_history = [message["parts"][0]["text"] for message in first["contents"][:-1]]
     assert sent_history == [text for turn in expected_turns for text in turn]
-    assert "FACTS:" in first["contents"][-1]["parts"][0]["text"]
+    request = first["contents"][-1]["parts"][0]["text"]
+    assert "FACTS:" in request and "The current date in IST is " in request
+    assert "previous calendar day" in first["systemInstruction"]["parts"][0]["text"]
     assert client.get("/api/health").json()["assistant"].startswith("rules + gemini analyst")
     json.dumps(r)
 
@@ -179,6 +182,45 @@ def test_follow_ups_keep_scope_between_rules_and_gemini(monkeypatch):
     total = ask("total pending")
     assert total["context"]["entities"] == []
     assert total["context"]["months"] == []
+
+
+def test_formatting_follow_ups_reuse_saved_analysis_without_fetching(monkeypatch):
+    expression = "2500000 / 10000000 * 100"
+    fake = FakeGemini(expression)
+    monkeypatch.setattr(main, "get_analyst", lambda: GeminiAnalyst("test-key", session=fake))
+    monkeypatch.setattr(main, "CHAT_MEMORY", ChatMemory())
+    sid = "format-analysis"
+    question = "Kesar Ethnic ka pending percentage in October"
+    first = client.post("/api/chat", json={"message": question, "session_id": sid}).json()
+    context = first["context"]
+    assert first["engine"] == "gemini"
+    assert context["question"] == question and context["answer"] == first["answer"]
+    assert context["months"] == ["October-26"] and "KESAR ETHNIC" in context["entities"][0]["value"]
+    assert context["result"] == {"value": 25, "unit": "%", "text": "25%"}
+    assert context["calculation"] == [{"expression": expression, "result": 25}]
+
+    def unexpected_call():
+        pytest.fail("Formatting the previous answer must use chat context only")
+
+    monkeypatch.setattr(main, "get_assistant", unexpected_call)
+    monkeypatch.setattr(main, "get_analyst", unexpected_call)
+    short = client.post("/api/chat", json={"message": "In one word?", "session_id": sid}).json()
+    assert short["answer"] == "25%" and short["context"] == context
+    detail = client.post("/api/chat", json={"message": "Explain this", "session_id": sid}).json()
+    assert detail["answer"].startswith(first["answer"])
+    assert expression in detail["answer"] and detail["context"] == context
+
+
+def test_formatting_follow_up_supports_browser_context_without_a_session(monkeypatch):
+    monkeypatch.setattr(main, "get_analyst", lambda: None)
+    first = client.post("/api/chat", json={"message": "On-time delivery in October"}).json()
+    context = first["context"]
+    assert context["result"]["unit"] == "%"
+    short = client.post("/api/chat", json={"message": "Just the number, please", "context": context}).json()
+    assert short["answer"] == context["result"]["text"] and short["context"] == context
+
+    changed = client.post("/api/chat", json={"message": "pending in one word", "context": context}).json()
+    assert changed["context"]["result"]["unit"] == "₹"
 
 
 def test_without_key_rules_still_answer():

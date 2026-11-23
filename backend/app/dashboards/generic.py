@@ -6,6 +6,7 @@ headers don't matter. Numbers stay numbers; dates arrive from Google as serial n
 from __future__ import annotations
 
 import re
+from datetime import date
 
 import pandas as pd
 
@@ -86,16 +87,35 @@ def sheet_view(grid, q: str = "", limit: int = 2000) -> dict:
     return {"header_row": h + 1, "total": int(total), "shown": int(min(total, limit)), "table": tb}
 
 
-def _col(cols, *names):
+def _col(cols, *names, contains=True):
     keys = {norm_key(c): c for c in cols}
     for n in names:
         if norm_key(n) in keys:
             return keys[norm_key(n)]
-    for n in names:
-        for k, c in keys.items():
-            if norm_key(n) in k:
-                return c
+    if contains:
+        for n in names:
+            for k, c in keys.items():
+                if norm_key(n) in k:
+                    return c
     return None
+
+
+def _otv_vendor(cols):
+    return _col(cols, "Vendor Name", "Vender Name", "Vendor", "Vender", "Party Name", "Party", "Supplier Name",
+                "Supplier", "Fabricator")
+
+
+def factory_visit_suppliers(grid, day: date) -> list[str] | None:
+    """Read matching supplier names from all rows. None means the tab has a different schema."""
+    df, _ = grid_frame(grid)
+    vendor = _otv_vendor(df.columns)
+    date_col = _col(df.columns, "Factory Visit Date", "Visit Date", "Date", "Order Date", contains=False)
+    selection = _col(df.columns, "Selection via", "Selected via", "Selection method", "Selection mode", contains=False)
+    if not (vendor and date_col and selection):
+        return None
+    visited = df.loc[df[selection].map(norm_key).isin({"FACTORYVISITED", "FACTORYVISIT", "VISITEDFACTORY"})]
+    dates = parse_dates(visited[date_col])
+    return clean_text(visited.loc[dates.dt.date.eq(day), vendor]).tolist()
 
 
 def otv_dashboard(grid, f: dict) -> dict:
@@ -103,7 +123,7 @@ def otv_dashboard(grid, f: dict) -> dict:
     if df.empty:
         return {"empty": True, "notices": [notice("This tab has no rows.", "info")], "kpis": [], "options": {}}
     t, fmts = typed(df)
-    vendor = _col(t.columns, "Vendor Name", "Vender Name", "Vendor", "Vender", "Party Name", "Party", "Supplier", "Fabricator")
+    vendor = _otv_vendor(t.columns)
     status = _col(t.columns, "Status", "Order Status", "Stage")
     amount = next((c for c in [_col(t.columns, "Order Amt", "Order Amount", "Amount", "Amt", "Value", "Total")]
                    if c and fmts.get(c) in ("int", "dec")), None)

@@ -11,6 +11,7 @@ import hmac
 import json
 import os
 import time
+from datetime import date
 from functools import lru_cache
 from typing import Annotated
 
@@ -22,6 +23,7 @@ from pydantic import BaseModel, Field
 
 from .assistant import Assistant
 from .assistant.analyst import GeminiAnalyst, build_facts, wants_analysis
+from .assistant.engine import is_factory_visit_question
 from .assistant.gemini import GeminiInterpreter
 from .assistant.memory import ChatMemory
 from .config import SHEET_REGISTRY, get_settings
@@ -30,6 +32,7 @@ from .dashboards import dues as dus
 from .dashboards import generic as gen
 from .dashboards import orders as ords
 from .dashboards import overview as ovw
+from .sources.google import SheetAccessError
 from .store import KINDS, Dataset, DataStore, meta
 
 API_VERSION = "1.0.0"
@@ -256,8 +259,35 @@ _ASSISTANT_PAGES = {"overview": overview, "orders": orders, "vendors": vendors, 
                     "order-to-vendors": order_to_vendors}
 
 
+def _factory_visits(day: date) -> dict:
+    store = get_store()
+    kind = "order_to_vendors"
+    sheet_id = SHEET_REGISTRY[kind]["id"]
+    suppliers = {}
+    has_visit_columns = False
+    incomplete = False
+    for tab in store.all_tabs(kind):
+        try:
+            entry = store.grid(sheet_id, tab)
+        except SheetAccessError:
+            incomplete = True
+            continue
+        incomplete |= bool(entry.error)
+        names = gen.factory_visit_suppliers(entry.value, day)
+        if names is not None:
+            has_visit_columns = True
+            for name in names:
+                if name:
+                    suppliers.setdefault(name.casefold(), name)
+    if not has_visit_columns and incomplete:
+        raise HTTPException(status_code=503, detail="Order to vendors tabs are unavailable.")
+    return {"suppliers": list(suppliers.values()), "has_visit_columns": has_visit_columns, "incomplete": incomplete}
+
+
 def _assistant_fetch(page: str, filters: dict) -> dict:
-    """The assistant reads the dashboard only through the same read-only functions the pages call."""
+    """Read the same dashboard data through the pages or the full-row factory-visit lookup."""
+    if page == "order-to-vendors" and filters.get("visit_date"):
+        return _factory_visits(date.fromisoformat(filters["visit_date"][0]))
     return _ASSISTANT_PAGES[page](**filters)
 
 
@@ -309,11 +339,12 @@ def _analyst_reply(question: str, history: list[tuple[str, str]], context: dict 
     if snapshot is None:
         return None
     facts, page, resolved = snapshot
-    text = analyst.answer(question, facts, history)
-    if not text:
+    answer = analyst.answer(question, facts, history)
+    if answer is None:
         return None
+    resolved.update(answer=answer.text, result=answer.result, calculation=answer.calculation)
     p = SHEET_PAGES.get(page) if page else None
-    return {"answer": text, "page": p[0] if p else None, "page_label": p[1] if p else None, "context": resolved,
+    return {"answer": answer.text, "page": p[0] if p else None, "page_label": p[1] if p else None, "context": resolved,
             "understood": True, "intent": "analysis", "engine": "gemini"}
 
 
@@ -325,21 +356,25 @@ SHEET_PAGES = {"orders": ("/orders", "Orders"), "vendors": ("/vendors", "Vendors
 def chat(body: ChatIn):
     """Flo-Wing Assistant: answers a question from the dashboard's own numbers (read-only).
 
+    Formatting follow-ups use the saved answer and its original result.
     Calculations and follow-ups that repeat a calculation go to the Gemini analyst when configured.
     Both engines use the chat's previous dashboard context to resolve follow-ups.
     """
     history, previous_context = CHAT_MEMORY.recall(body.session_id)
     context = body.context or previous_context
-    analysis = wants_analysis(body.message)
-    out = None
-    if analysis or (context and context.get("intent") == "analysis"):
-        out = _analyst_reply(body.message, history, context, follow_up_only=not analysis)
-    if out is None:
+    out = Assistant.presentation_reply(body.message, previous_context or context)
+    if out is None and is_factory_visit_question(body.message, context):
         out = get_assistant().answer(body.message, context)
-        if out.get("intent") == "out_of_scope":
-            return out
-        if not out.get("understood"):
-            out = _analyst_reply(body.message, history, context) or out
+    if out is None:
+        analysis = wants_analysis(body.message)
+        if analysis or (context and context.get("intent") == "analysis"):
+            out = _analyst_reply(body.message, history, context, follow_up_only=not analysis)
+        if out is None:
+            out = get_assistant().answer(body.message, context)
+            if not out.get("understood") and out.get("intent") not in ("out_of_scope", "clarify"):
+                out = _analyst_reply(body.message, history, context) or out
+    if out.get("intent") == "out_of_scope":
+        return out
     resolved = out.get("context") if out.get("understood") else None
     CHAT_MEMORY.add(body.session_id, body.message, out.get("answer", ""), resolved)
     _log_question(body.message, out)

@@ -5,6 +5,7 @@ backend/chat_questions.log, lines marked MISSED) and the words a correct answer 
 (app/assistant/text.py, pages.py) until the whole bank passes.
 """
 import os
+from datetime import date, datetime
 
 os.environ["DATA_SOURCE"] = "demo"
 os.environ["GEMINI_API_KEY"] = ""
@@ -13,9 +14,13 @@ os.environ["CHAT_LOG"] = "off"
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app import main
+from app.assistant import engine
+from app.config import SHEET_REGISTRY, Settings
+from app.sources.demo import DemoSheetSource, serial
+from app.store import DataStore
 
-client = TestClient(app)
+client = TestClient(main.app)
 
 
 def ask(q, ctx=None):
@@ -101,6 +106,104 @@ def test_follow_up(chain, expected):
         r = ask(q, ctx)
         ctx = r.get("context")
     assert expected.lower() in r["answer"].lower(), f"{chain!r} -> {r['answer'][:160]!r}"
+
+
+@pytest.fixture
+def factory_visit_suppliers(monkeypatch):
+    source = DemoSheetSource()
+    header = ["Date", "City", "Supplier Name", "Selection via", "Selected"]
+    names = ["RARE", "ROOPRANG", "REGARDS", "SILAAI APPARELS", "DESIGNER COLLECTION", "MEERA ETHENIC"]
+    visited_date = date(2026, 11, 12)
+    source.sheets[SHEET_REGISTRY["order_to_vendors"]["id"]] = {
+        "26-27": [header, ["12/11/2026", "Jaipur", "From catalogue", "Catalogue", "Yes"]],
+        "25-26": [["Order to vendors"], header]
+        + [["01/11/2026", "Jaipur", "Earlier supplier", "Factory Visited", "Yes"]] * 2000
+        + [[serial(visited_date), "Jaipur", names[0], "Factory Visited", "Reworking"]]
+        + [["12/11/2026", "Jaipur", name, "Factory Visited", "Yes"] for name in names[1:]]
+        + [["13/11/2026", "Jaipur", "CIGNAL", "Factory Visited", "Yes"],
+           ["23/11/2026", "Jaipur", "Today's supplier", "Factory Visited", "Yes"]],
+        "Archive": [header, ["12/11/2026", "Jaipur", "rare", "Factory Visited", "Yes"]],
+        "Summary": [["Summary"], ["Category", "Total"]],
+    }
+    store = DataStore(source, Settings())
+    monkeypatch.setattr(main, "get_store", lambda: store)
+    monkeypatch.setattr(engine, "today_ist", lambda: datetime(2026, 11, 23))
+
+    def unexpected_analyst():
+        pytest.fail("Factory visit lookups should be answered from the sheet rows")
+
+    monkeypatch.setattr(main, "get_analyst", unexpected_analyst)
+    return names
+
+
+@pytest.mark.parametrize("question", [
+    "list all of then who visited factory on date 12nov",
+    "Which suppliers were marked Factory Visited on 12/11/2026?",
+    "Explain who visited the factory on 2026-11-12",
+    "List factory visits on Nov 12, 2026",
+])
+def test_factory_visit_lookup(question, factory_visit_suppliers):
+    reply = ask(question)
+    assert reply["understood"] and reply["intent"] == "factory_visits"
+    assert reply["page"] == "/order-to-vendors"
+    assert reply["context"]["date"] == "2026-11-12"
+    assert "6 suppliers" in reply["answer"] and "12 November 2026" in reply["answer"]
+    assert [line[2:] for line in reply["answer"].splitlines() if line.startswith("• ")] == factory_visit_suppliers
+
+
+def test_factory_visit_lookup_handles_no_match_and_invalid_date(factory_visit_suppliers):
+    missing = ask("Who visited factory on 14 Nov?")
+    assert missing["understood"] and "no suppliers" in missing["answer"]
+    invalid = ask("Who visited factory on 31 Nov?")
+    assert invalid["intent"] == "factory_visits" and "Which date" in invalid["answer"]
+
+
+def test_factory_visit_follows_up_on_a_new_date(factory_visit_suppliers):
+    sid = "factory-visit-date-followup"
+    first = client.post("/api/chat", json={"message": "Who visited factory on 12nov?", "session_id": sid}).json()
+    assert first["understood"] and first["context"]["date"] == "2026-11-12"
+
+    for question, day, name, context in (
+        ("and today", "2026-11-23", "Today's supplier", first["context"]),
+        ("and for 13nov?", "2026-11-13", "CIGNAL", None),
+        ("aur aaj ke liye?", "2026-11-23", "Today's supplier", None),
+    ):
+        reply = client.post("/api/chat", json={"message": question, "session_id": sid, "context": context}).json()
+        assert reply["understood"] and reply["intent"] == "factory_visits"
+        assert reply["context"]["date"] == day
+        assert [line[2:] for line in reply["answer"].splitlines() if line.startswith("• ")] == [name]
+
+
+def test_factory_visit_resolves_today_on_a_standalone_question(factory_visit_suppliers):
+    reply = ask("Who visited factory today?")
+    assert reply["understood"] and reply["context"]["date"] == "2026-11-23"
+    assert "Today's supplier" in reply["answer"]
+    assert ask("weather today", reply["context"])["intent"] == "out_of_scope"
+
+
+def test_factory_visit_yesterday_after_an_empty_result(factory_visit_suppliers, monkeypatch):
+    monkeypatch.setattr(engine, "today_ist", lambda: datetime(2026, 11, 24))
+    first = ask("Who visited factory on 12nov?")
+    today = ask("today", first["context"])
+    assert today["understood"] and "no suppliers" in today["answer"]
+    yesterday = ask("yesterday", today["context"])
+    assert yesterday["understood"] and yesterday["context"]["date"] == "2026-11-23"
+    assert "Today's supplier" in yesterday["answer"]
+
+
+def test_bare_date_asks_for_the_missing_subject_before_reading_data():
+    def unexpected_fetch(*args):
+        pytest.fail("A date without a subject should ask what to look up")
+
+    reply = engine.Assistant(unexpected_fetch).answer("yesterday")
+    assert reply["intent"] == "clarify" and "What should I look up for that date?" in reply["answer"]
+
+
+def test_natural_question_can_use_a_measure_from_dashboard_labels():
+    dashboard = {"kpis": [{"label": "Inspection fee", "format": "inr", "value": 1500}]}
+    assistant = engine.Assistant(lambda page, filters: dashboard if page == "orders" else {})
+    reply = assistant.answer("How much is the inspection fee?")
+    assert reply["understood"] and "₹1,500" in reply["answer"]
 
 
 def test_gemini_is_optional():

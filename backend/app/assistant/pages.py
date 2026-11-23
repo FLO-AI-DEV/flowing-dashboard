@@ -98,5 +98,6 @@ FEATURES = [
 ]
 
 HELP = ("I answer questions about the numbers and pages of this dashboard, in English or Hinglish. Ask about "
-        "ordered, received, pending or overdue value and pcs, on-time delivery, supplier dues and payments, a vendor, "
-        "category, department, city or month. Add “in one word” for just the number, or “in detail” for a breakdown.")
+        "ordered, received, pending or overdue value and pcs, on-time delivery, supplier dues and payments, "
+        "factory visits by date, a vendor, category, department, city or month. "
+        "Add “in one word” for just the number, or “in detail” for a breakdown.")

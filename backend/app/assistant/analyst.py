@@ -16,9 +16,11 @@ import json
 import logging
 import os
 import re
+from dataclasses import dataclass
 
 import requests
 
+from ..core import today_ist
 from . import fmt
 from .calc import CalcError, calculate
 from .engine import Snapshot, Vocabulary, is_dashboard_question, is_unrelated_request, kpi_list, parse, table_list
@@ -42,18 +44,22 @@ CALC = re.compile(
     r"\bwhy\b|\bkyun\b|\bkyon\b|\bexplain\b|\bsummar|\binsight|\bsuggest|\badvice\b|\bshould\b)", re.I)
 
 SYSTEM = """You are Flo-Wing Assistant inside Flo-Wing's operations dashboard (a women's ethnic wear wholesaler in Jaipur).
-Answer only about Flo-Wing dashboard data and features. Use FACTS for figures and use chat history to resolve dashboard follow-ups.
-- For unrelated requests, including standalone arithmetic or requests to write code, say you can help with orders,
-  vendors, or supplier dues. Merely mentioning the dashboard does not make the request relevant.
+Answer questions about Flo-Wing dashboard data and features. Users can ask in natural English, Hindi or Hinglish,
+including short phrases and typos. Use chat history to resolve references, and ground figures in FACTS.
+- A follow-up can name just a date, a filter, or a formatting change. Keep the previous subject, measure, unit, and
+  filters unless the user changes them. For example, after factory visits on 12 November, “yesterday” asks for the
+  same lookup on the previous calendar day, and “in one word” asks for the same result in a shorter format.
+- Resolve relative dates from the current date in IST supplied in FACTS. Use records or aggregates only at the
+  requested date granularity. If the needed data is unavailable, say what is missing and name the relevant page.
+- If the dashboard subject or date is unclear, ask one specific clarification. For unrelated requests, ask what
+  the user wants to look up in the dashboard and give one relevant example.
 - For dashboard arithmetic (sum, difference, %, average, ratio, per-unit) call the calculate tool with the relevant
   dashboard figures. Never compute in your head.
-- Money: rupees in Indian style (₹12.34 L, ₹1.23 Cr, ₹45,600). Quantities in pcs. Bold the key figure.
+- Money: rupees in Indian style (₹12.34 L, ₹1.23 Cr, ₹45,600). Quantities in pcs. Bold the key figure with its unit.
 - Be brief: 1-3 sentences, or a short bullet list for a breakdown. No preamble, no tables.
-- Users write in English, Hindi or Hinglish, often with typos or no punctuation: work out what they mean and reply in the same style.
-- If a question is ambiguous, state your assumption in a few words (or ask one short question if it truly can't be answered).
-- For a follow-up, use the resolved scope and measure in FACTS. Use current figures from matching page filters or matching table rows.
-- If FACTS don't contain what is asked, say so and name the dashboard page that would show it. Never invent figures.
-- Pages: Orders (PO lines: ordered/received/pending/overdue), Vendors (scorecard), Supplier dues (payables), Order to vendors."""
+- Reply in the user's language and style. Use the resolved scope and measure in FACTS to select matching rows or filters.
+- Report zero matches only when the available results cover the requested scope. Never invent figures or records.
+- Pages include Orders (PO lines), Vendors (scorecard), Supplier dues (payables), and Order to vendors (factory visits)."""
 
 TOOLS = [{"functionDeclarations": [{
     "name": "calculate",
@@ -89,7 +95,7 @@ def build_facts(assistant, question: str, today_month: str | None, context: dict
     snap = Snapshot(assistant.fetch)
     vocab = Vocabulary(snap)
     q = parse(question, vocab, today_month)
-    if not is_dashboard_question(q, context):
+    if not is_dashboard_question(q, context, vocab):
         return None
     changes_scope = bool(q.entities or q.months)
     has_measure = bool(q.metric_toks)
@@ -100,7 +106,8 @@ def build_facts(assistant, question: str, today_month: str | None, context: dict
     measure = (context or {}).get("metric") if q.inherited and not has_measure else None
     measure = measure or " ".join(dict.fromkeys(t for t in q.toks if t in q.metric_toks))
     pages = list(dict.fromkeys([p for p in q.pages if p in FACT_PAGES] + FACT_PAGES))
-    out = [f"Months in the data: {', '.join(vocab.months) or 'none'}. Current month: {today_month or '-'}."]
+    out = [f"The current date in IST is {today_ist():%Y-%m-%d}.",
+           f"Months in the data: {', '.join(vocab.months) or 'none'}. Current month: {today_month or '-'}."]
     named = [e.display for e in q.entities if e.type != "month"]
     if named or q.months:
         out.append(f"Resolved scope: {', '.join(named + q.months)}.")
@@ -146,6 +153,16 @@ def build_facts(assistant, question: str, today_month: str | None, context: dict
     return "\n".join(out), first, resolved
 
 
+@dataclass
+class AnalysisAnswer:
+    text: str
+    calculation: list[dict]
+
+    @property
+    def result(self) -> dict | None:
+        return fmt.reported_result(self.text)
+
+
 class GeminiAnalyst:
     def __init__(self, api_key: str, model: str = DEFAULT_MODEL, timeout: float = 25.0, session=None):
         self.api_key, self.model, self.timeout = api_key, model, timeout
@@ -175,7 +192,7 @@ class GeminiAnalyst:
         except Exception:  # noqa: BLE001
             return None
 
-    def answer(self, question: str, facts: str, history: list[tuple[str, str]]) -> str | None:
+    def answer(self, question: str, facts: str, history: list[tuple[str, str]]) -> AnalysisAnswer | None:
         contents = []
         for q, a in history[-MAX_TURNS:]:
             contents.append({"role": "user", "parts": [{"text": q}]})
@@ -183,6 +200,7 @@ class GeminiAnalyst:
         contents.append({"role": "user", "parts": [{"text": f"FACTS:\n{facts}\n\nQUESTION: {question}"}]})
         body = {"systemInstruction": {"parts": [{"text": SYSTEM}]}, "contents": contents, "tools": TOOLS,
                 "generationConfig": {"temperature": 0.2, "maxOutputTokens": 400}}
+        calculation = []
         for _ in range(MAX_ROUNDS):
             content = self._post(body)
             if not content:
@@ -191,13 +209,14 @@ class GeminiAnalyst:
             calls = [p["functionCall"] for p in parts if isinstance(p, dict) and "functionCall" in p]
             if not calls:
                 text = "".join(p.get("text", "") for p in parts if isinstance(p, dict)).strip()
-                return text or None
+                return AnalysisAnswer(text, calculation) if text else None
             body["contents"].append({"role": "model", "parts": parts})
             replies = []
             for call in calls:
                 expr = str((call.get("args") or {}).get("expression", ""))
                 try:
                     result = {"result": calculate(expr)}
+                    calculation.append({"expression": expr, **result})
                 except CalcError as e:
                     result = {"error": str(e)}
                 replies.append({"functionResponse": {"name": call.get("name", "calculate"), "response": result}})
