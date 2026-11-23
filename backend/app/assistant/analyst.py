@@ -21,7 +21,7 @@ import requests
 
 from . import fmt
 from .calc import CalcError, calculate
-from .engine import Snapshot, Vocabulary, kpi_list, parse, table_list
+from .engine import Snapshot, Vocabulary, is_dashboard_question, is_unrelated_request, kpi_list, parse, table_list
 from .memory import MAX_TURNS
 from .pages import PAGES
 
@@ -42,8 +42,11 @@ CALC = re.compile(
     r"\bwhy\b|\bkyun\b|\bkyon\b|\bexplain\b|\bsummar|\binsight|\bsuggest|\badvice\b|\bshould\b)", re.I)
 
 SYSTEM = """You are Flo-Wing Assistant inside Flo-Wing's operations dashboard (a women's ethnic wear wholesaler in Jaipur).
-Answer ONLY from FACTS (read live from the company's Google Sheets) and this chat.
-- For ANY arithmetic (sum, difference, %, average, ratio, per-unit) call the calculate tool. Never compute in your head.
+Answer only about Flo-Wing dashboard data and features. Use FACTS for figures and use chat history to resolve dashboard follow-ups.
+- For unrelated requests, including standalone arithmetic or requests to write code, say you can help with orders,
+  vendors, or supplier dues. Merely mentioning the dashboard does not make the request relevant.
+- For dashboard arithmetic (sum, difference, %, average, ratio, per-unit) call the calculate tool with the relevant
+  dashboard figures. Never compute in your head.
 - Money: rupees in Indian style (₹12.34 L, ₹1.23 Cr, ₹45,600). Quantities in pcs. Bold the key figure.
 - Be brief: 1-3 sentences, or a short bullet list for a breakdown. No preamble, no tables.
 - Users write in English, Hindi or Hinglish, often with typos or no punctuation: work out what they mean and reply in the same style.
@@ -81,9 +84,13 @@ def _cell(v, col) -> str:
 def build_facts(assistant, question: str, today_month: str | None, context: dict | None = None,
                 *, follow_up_only: bool = False) -> tuple[str, str | None, dict] | None:
     """Build current dashboard facts and the resolved context to carry into the next turn."""
+    if is_unrelated_request(question):
+        return None
     snap = Snapshot(assistant.fetch)
     vocab = Vocabulary(snap)
     q = parse(question, vocab, today_month)
+    if not is_dashboard_question(q, context):
+        return None
     changes_scope = bool(q.entities or q.months)
     has_measure = bool(q.metric_toks)
     assistant._inherit(q, context, vocab)

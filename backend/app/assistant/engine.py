@@ -206,8 +206,9 @@ _WHERE = re.compile(r"\b(where|kahan|kaha|kidhar|which page|kis page|kaunse page
 _LIST = re.compile(r"\b(list|names|name all|kaun kaun|kon kon|which are the|show all|all the)\b")
 _COMPARE = re.compile(r"\b(vs|versus|compare|comparison|compared|difference|mukabla|between)\b")
 _GREET = re.compile(r"^\s*(hi+|hello|hey|namaste|namaskar|hola|good (morning|afternoon|evening)|yo)\b[\s!.?]*$")
-_THANKS = re.compile(r"^\s*(thanks|thank you|thx|ty|dhanyavad|shukriya|great|nice|ok|okay|cool)\b[\s!.?a-z]*$")
-_HELP = re.compile(r"\b(what can you do|help|how (do|can) i use you|who are you|what do you do|kya kar sakte)\b")
+_THANKS = re.compile(r"^(?:(?:thanks|thank you)(?: a lot| so much| very much)?|thx|ty|dhanyavad|shukriya|"
+                     r"great|nice|ok|okay|cool)[\s!.?]*$")
+_HELP = re.compile(r"\b(what can you do|help(?: me)?|how (do|can) i use you|who are you|what do you do|kya kar sakte)\b")
 _HOWTO = re.compile(r"\b(how (do|does|can|to|is)|kaise|where is the|can i|is there)\b")
 _FOLLOW = re.compile(r"^\s*(and|what about|how about|aur|or|same for|also|uska|unka|iska|for)\b")
 _PRONOUN = re.compile(r"\b(her|his|their|its|she|he|they|uska|uski|uske|unka|unki|unke|iska|inka|same)\b")
@@ -216,6 +217,22 @@ _PLURAL_DIMS = "|".join(DIMENSION_PLURALS)
 _EACH = re.compile(rf"\b(?:of|for|by|across|among) (?:all |each |every |the |all the )?(?:{_PLURAL_DIMS})\b|"
                    rf"\b(?:each|every|har|sabhi|sab|all) (?:{_PLURAL_DIMS}|{'|'.join(DIMENSION_WORDS)})\b")
 _QUALITY = re.compile(r"\b(best|worst|reliable|unreliable)\b")
+_UNRELATED = re.compile(
+    r"```|\b(?:ignore|forget|disregard|override) (?:\w+ ){0,3}(?:instructions|rules)\b|"
+    r"\b(?:python|javascript|typescript|sql) (?:code|script|program|function|query)\b|"
+    r"\b(?:code|script|program|function|query) in (?:python|javascript|typescript|sql|java)\b|"
+    r"\b(?:write|generate|create|implement|debug|provide|give) (?:\w+ ){0,4}"
+    r"(?:code|script|program|function|algorithm|poem|joke)\b|"
+    r"\b(?:weather|joke|capital of|order of operations)\b")
+_DASHBOARD_TERMS = label_tokens(
+    "pending received ordered overdue payable payment vendor agency delivery on-time delay "
+    "purchase orders outstanding ageing bills dashboard")
+_DASHBOARD_PHRASES = re.compile(r"\b(?:credit days|supplier terms|days overdue)\b")
+_FEATURE_TERMS = {word for triggers, _ in FEATURES for word in triggers}
+_FOLLOW_UP_TERMS = label_tokens("inr qty rate difference ratio average")
+_REPEAT = re.compile(r"(?:same(?: again)?|again|(?:repeat|say|show) (?:it|that)(?: again)?)(?: please)?[?.!]*")
+_SCOPE_REPLY = ("I can help with the Flo-Wing dashboard. "
+                "Ask me about orders, vendors, or supplier dues.")
 
 
 def _month_index(word: str) -> int | None:
@@ -404,6 +421,31 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
     return q
 
 
+def is_unrelated_request(question: str) -> bool:
+    return bool(_UNRELATED.search(norm(question)))
+
+
+def is_dashboard_question(q: Query, context: dict | None) -> bool:
+    """Check the current question before inheriting a previous turn's dashboard scope."""
+    t = norm(q.text)
+    if q.pages or q.intent == "record" or _DASHBOARD_PHRASES.search(t) or label_tokens(t) & _DASHBOARD_TERMS:
+        return True
+    if (q.entities and not q.metric_toks) or (q.dims and q.intent in ("list", "count")):
+        return True
+    if _HELP.fullmatch(t.rstrip("?.!")):
+        return True
+    words = set(raw_tokens(t))
+    if words & _FEATURE_TERMS and (words - STOP - {"how", "kaise"}) <= (_FEATURE_TERMS | {"csv"}):
+        return True
+    if not isinstance(context, dict) or not context.get("metric"):
+        return False
+    if q.months and set(q.toks) <= {"how"}:
+        return True
+    if q.style != "normal" and not q.toks:
+        return True
+    return bool(_REPEAT.fullmatch(t) or (q.metric_toks and q.metric_toks <= _FOLLOW_UP_TERMS))
+
+
 # ------------------------------------------------------------------------------------------------ scoring
 def mscore(label: str, q: Query, unit: str = "", fmt_: str | None = None) -> float:
     lt = label_tokens(label)
@@ -484,19 +526,22 @@ class Assistant:
         question = (question or "").strip()[:MAX_QUESTION]
         if not question:
             return self._reply("Please type a question about the dashboard.", understood=False)
-        snap = Snapshot(self.fetch)
-        vocab = Vocabulary(snap)
-        if len(vocab.errors) == len(PAGES):
-            return self._reply("I can't read the dashboard data right now (" + next(iter(vocab.errors.values())) +
-                               "). Please try again in a minute.", understood=False)
-
         t = norm(question)
         if _GREET.match(t):
             return self._reply("Hi! I'm Flo-Wing Assistant. " + HELP, intent="greet")
-        if _THANKS.match(t) and len(t.split()) <= 4:
+        if _THANKS.match(t):
             return self._reply("You're welcome! Ask me anything else about the dashboard.", intent="thanks")
+        if is_unrelated_request(t):
+            return self._reply(_SCOPE_REPLY, understood=False, intent="out_of_scope")
 
+        snap = Snapshot(self.fetch)
+        vocab = Vocabulary(snap)
         q = parse(question, vocab, self.today_month())
+        if not is_dashboard_question(q, context):
+            return self._reply(_SCOPE_REPLY, understood=False, intent="out_of_scope")
+        if len(vocab.errors) == len(PAGES):
+            return self._reply("I can't read the dashboard data right now (" + next(iter(vocab.errors.values())) +
+                               "). Please try again in a minute.", understood=False)
         self._inherit(q, context, vocab)
         result = self._solve(q, snap, vocab)
         if result is None and self.interpreter is not None:

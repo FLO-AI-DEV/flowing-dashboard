@@ -185,3 +185,36 @@ def test_without_key_rules_still_answer():
     main.get_analyst.cache_clear()
     r = client.post("/api/chat", json={"message": "pending kitna percent hai ordered ka"}).json()
     assert r["engine"] == "rules"
+
+
+def test_unrelated_requests_do_not_reach_gemini_or_change_chat_context(monkeypatch):
+    def unexpected_call(*args):
+        pytest.fail("Unrelated requests must be handled locally")
+
+    monkeypatch.setattr(main, "get_analyst", lambda: SimpleNamespace(answer=unexpected_call))
+    monkeypatch.setattr(main.get_assistant(), "interpreter", SimpleNamespace(interpret=unexpected_call))
+    chats = ChatMemory()
+    monkeypatch.setattr(main, "CHAT_MEMORY", chats)
+    sid = "scope-test"
+    chats.add(sid, "pending percentage", "50%", {"intent": "analysis", "metric": "Pending percentage", "page": "orders"})
+    previous = chats.recall(sid)
+
+    for question in (
+        "sum(1, 2, 3) tell me response",
+        "calculate 20% of 200",
+        "tell me python code of odd even function",
+        "write a Python function to calculate pending orders",
+        "aur joke sunao",
+        "what is the weather in June?",
+        "what day is it today?",
+        "tell me about credit cards",
+        "what is the tallest mountain?",
+    ):
+        response = client.post("/api/chat", json={"message": question, "session_id": sid})
+        assert response.status_code == 200
+        reply = response.json()
+        assert reply["intent"] == "out_of_scope", (question, reply)
+        assert not reply["understood"]
+        assert "Flo-Wing dashboard" in reply["answer"]
+
+    assert chats.recall(sid) == previous

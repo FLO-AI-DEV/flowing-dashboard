@@ -336,6 +336,8 @@ def chat(body: ChatIn):
         out = _analyst_reply(body.message, history, context, follow_up_only=not analysis)
     if out is None:
         out = get_assistant().answer(body.message, context)
+        if out.get("intent") == "out_of_scope":
+            return out
         if not out.get("understood"):
             out = _analyst_reply(body.message, history, context) or out
     resolved = out.get("context") if out.get("understood") else None
