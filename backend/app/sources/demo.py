@@ -73,6 +73,13 @@ def _dues_tab(today: date, title_day: date, rnd: random.Random):
             rows.append([f"{bd:%d-%b-%Y}", f"{rnd.randint(100, 1999)}/FWP/{rnd.randint(100, 999)}-2627", v,
                          f"{amt:.2f} Cr", amt, "", amt, "", "", f"{due:%d-%b-%Y}", rnd.choice(["", "", "okay"])])
             sub += amt
+        if v == VENDORS[0][0]:       # always one bill due within 7 days and one overdue, whatever today's date is
+            for k, (age, left) in enumerate([(27, 3), (45, -12)]):
+                amt = 50_000 + 10_000 * k
+                bd, due = today - timedelta(days=age), today + timedelta(days=left)
+                rows.append([f"{bd:%d-%b-%Y}", f"{900 + k}/FWP/{900 + k}-2627", v, f"{amt:.2f} Cr", amt, "", amt, "", "",
+                             f"{due:%d-%b-%Y}", ""])
+                sub += amt
         rows.append(["", "", "", "", "", "", sub])
         rows.append([])
     return rows

@@ -182,13 +182,18 @@ def use_analyst(monkeypatch):
     main.ANSWER_CACHE.clear()
 
 
+def kesar_pending() -> str:
+    """Kesar Ethnic's pending value as the dashboard shows it today (the demo orders move with the date)."""
+    return f"₹{kpi('orders', 'pending', vendor='KESAR ETHNIC (JAIPUR)') / 1e5:.2f} L"
+
+
 def test_gemini_looks_up_exact_rows(use_analyst):
     fake = Scripted(call("query_table", table="po_lines", filters=["vendor contains kesar"], metrics=["sum pending_amt"]),
                     lambda b: [{"text": f"Kesar Ethnic: **₹{last_response(b)['result']['sum_pending_amt'] / 1e5:.2f} L** "
                                         "still to come in."}])
     use_analyst(fake)
     r = client.post("/api/chat", json={"message": "kesar ethnic details"}).json()
-    assert r["engine"] == "gemini" and "₹14.68 L" in r["answer"] and "couldn't be checked" not in r["answer"]
+    assert r["engine"] == "gemini" and kesar_pending() in r["answer"] and "couldn't be checked" not in r["answer"]
     sent = fake.bodies[0]
     assert "TABLES" in sent["systemInstruction"]["parts"][0]["text"]
     assert {f["name"] for f in sent["tools"][0]["functionDeclarations"]} == {"calculate", "query_table", "search_rows"}
@@ -197,10 +202,10 @@ def test_gemini_looks_up_exact_rows(use_analyst):
 def test_made_up_figure_is_sent_back_and_corrected(use_analyst):
     fake = Scripted([{"text": "Kesar has **₹99.99 L** pending."}],
                     call("query_table", table="po_lines", filters=["vendor contains kesar"], metrics=["sum pending_amt"]),
-                    [{"text": "Kesar has **₹14.68 L** pending."}])
+                    [{"text": f"Kesar has **{kesar_pending()}** pending."}])
     use_analyst(fake)
     r = client.post("/api/chat", json={"message": "kesar ethnic details"}).json()
-    assert "₹14.68 L" in r["answer"]
+    assert kesar_pending() in r["answer"]
     assert "CHECK:" in fake.bodies[1]["contents"][-1]["parts"][0]["text"]
 
 
