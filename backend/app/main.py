@@ -28,9 +28,9 @@ from .dashboards import enquiries as enqs
 from .dashboards import orders as ords
 from .dashboards import payments as pays
 from . import nudges
-from .store import Dataset, DataStore, meta
+from .store import DEFAULT_PO_WINDOW, PO_WINDOWS, Dataset, DataStore, meta
 
-API_VERSION = "1.0.0"
+API_VERSION = "1.3.5-po"
 
 
 @lru_cache(maxsize=1)
@@ -192,12 +192,49 @@ def home(month: Multi = [], channel: Multi = [], sales_person: Multi = []):
     body = ords.home_dashboard(d, f)
     if pds.data is not None:      # payments joins the "Needs action" list; Today still works if that sheet is down
         rank = {"bad": 0, "warn": 1, "good": 2}
-        body["actions"] = sorted(body["actions"] + pays.needs_action(pds.data),
+        body["actions"] = sorted(body["actions"] + pays.po_actions(pds.data),
                                  key=lambda r: (rank[r["tone"]], -r["late"], -r["oldest_days"]))
         body["notices"] = body["notices"] + [n for n in pds.data.get("issues", []) if n["kind"] != "info"]
         return _envelope(body, ds, pds)
     body["notices"] = body["notices"] + [{"kind": "warning", "text": f"Payment follow-up not loaded: {pds.error}"}]
     return _envelope(body, ds)
+
+
+def _po(window: str):
+    if window not in PO_WINDOWS:
+        window = DEFAULT_PO_WINDOW
+    ds = get_store().payments_dataset(window)
+    return _need(ds), ds
+
+
+@app.get("/api/po", dependencies=[Depends(require_auth)])
+def po_overview(window: str = DEFAULT_PO_WINDOW, range: str = "", bucket: str = ""):
+    """PO follow-up: how many POs are on track / due / overdue, and one row per caller and per sales person.
+    Only the rows of `window` are read from the (very long) PO log."""
+    d, ds = _po(window)
+    body = pays.po_overview(d, period=range, bucket=bucket)
+    body["windows"] = [{"key": k, "label": v[0]} for k, v in PO_WINDOWS.items()]
+    return _envelope(body, ds)
+
+
+@app.get("/api/po/person", dependencies=[Depends(require_auth)])
+def po_person(role: str, name: str, window: str = DEFAULT_PO_WINDOW, range: str = "", bucket: str = "", order: str = "", focus: str = ""):
+    """One caller's (role=crm) or sales person's (role=sp) open POs with what to do about each."""
+    d, ds = _po(window)
+    try:
+        return _envelope(pays.person_dashboard(d, role, name, period=range, bucket=bucket, order=order, focus=focus), ds)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Unknown person.")
+
+
+@app.get("/api/po/report", dependencies=[Depends(require_auth)])
+def po_report(role: str, name: str, window: str = DEFAULT_PO_WINDOW):
+    """A small performance report for one sales person (role=sp) or caller (role=crm)."""
+    d, ds = _po(window)
+    try:
+        return _envelope(pays.person_report(d, role, name), ds)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Unknown person.")
 
 
 @app.get("/api/payments", dependencies=[Depends(require_auth)])
@@ -239,6 +276,22 @@ def enquiries():
     return _envelope(enqs.home_dashboard(d), ds)
 
 
+@app.get("/api/enquiries/categories", dependencies=[Depends(require_auth)])
+def enquiry_categories():
+    """For each enquiry tab, a column of categories (the team's own, else a best guess) to paste into the sheet."""
+    ds = get_store().dataset("enquiries")
+    _need(ds)
+    sid = SHEET_REGISTRY["enquiries"]["id"]
+    out = []
+    for tab, label in enqs.TABS:
+        grid = get_store().grid(sid, tab).value
+        try:
+            out.append({"label": label, **enqs.suggest_column(grid, tab)})
+        except Exception:
+            continue
+    return _envelope({"tabs": out}, ds)
+
+
 @app.get("/api/enquiries/cause/{key}", dependencies=[Depends(require_auth)])
 def enquiry_cause(key: str, range: str = "", order: str = "oldest", status: str = ""):
     d, ds = _enquiries()
@@ -254,7 +307,7 @@ class NudgeBody(BaseModel):
     scope: str = "today"            # today / week / month / older / custom
     min_days: int = 0               # for scope=custom: waiting this many days or more
     force: bool = False             # send again although the same list went out recently
-    group: str = "all"              # cause "enquiry" only: what the enquiries are about (a group key from /api/enquiries)
+    group: str = "all"              # cause "enquiry": what the enquiries are about; cause "payment": "crm:Kiran" / "sp:Piyush"
 
 
 def _nudge(body: NudgeBody, send: bool):
@@ -263,6 +316,8 @@ def _nudge(body: NudgeBody, send: bool):
         raise HTTPException(status_code=404, detail="WhatsApp sending is not set up. Add NUDGE_SHEET_ID to the dashboard settings.")
     if body.cause == "enquiry":
         view, _ds = _enquiries()
+    elif body.cause == "payment":
+        view, _ds = _po(DEFAULT_PO_WINDOW)
     else:
         d, _ds = _orders()
         view = ords.stage_view(d["orders"])

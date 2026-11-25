@@ -20,6 +20,7 @@ import pandas as pd
 from .core import now_ist
 from .dashboards import enquiries as enqs
 from .dashboards import orders as ords
+from .dashboards import payments as pays
 
 TRIGGER_TAB = "Trigger"
 STAFF_TAB = "Staff"
@@ -34,6 +35,7 @@ ASK = {   # what the person is being asked to do, per cause
     "bill": "waiting for a bill",
     "hold": "on hold",
     "enquiry": "still open",
+    "payment": "waiting for payment",
 }
 CLOSING = {
     "reply": "Please write BILL or PO for each in the order sheet.",
@@ -41,7 +43,15 @@ CLOSING = {
     "bill": "Please mark BILL STATUS DONE in the order sheet when each is made.",
     "hold": "Please sort out the hold reason and tell the team.",
     "enquiry": "Please follow up and mark each one SOLVED in the enquiry sheet when it is done.",
+    "payment": "Please call the clients and record each follow-up in the form.",
 }
+PAYMENT_SCOPES = {"todo": "to do today", "overdue": f"overdue ({pays.DUE_DAYS + 1}+ days)",
+                  "due": f"due within {pays.DUE_DAYS} days", "all": "all open",
+                  "stale": "not followed up for 2+ days", "today": "sent today", "week": "sent yesterday to 7 days ago", "month": "sent 8 to 30 days ago",
+                  "older": "sent over 30 days ago",
+                  "b:on_track": "0-4 days, on track", "b:due_soon": f"5-{pays.DUE_DAYS} days, payment due soon",
+                  "b:overdue": f"{pays.DUE_DAYS + 1}-{pays.LIMIT_DAYS} days, overdue",
+                  "b:past_limit": f"{pays.LIMIT_DAYS + 1}+ days, at risk of cancellation", "b:not_sent": "PO not sent yet"}
 
 
 class NudgeError(Exception):
@@ -65,7 +75,10 @@ class TestOutbox:
 
     def staff(self) -> list[Person]:
         return [Person("Mona", "910000000001", {"reply"}), Person("Akshat", "910000000002", {"po", "bill"}),
-                Person("Kavita", "910000000003", {"enquiry"})]
+                Person("Kavita", "910000000003", {"enquiry"}),
+                Person("Kiran", "910000000004", {"payment"}), Person("Lokesh", "910000000005", {"payment"}),
+                Person("Suryansh", "910000000006", {"payment"}), Person("Piyush", "910000000007", {"payment"}),
+                Person("Preeti", "910000000008", {"payment"})]
 
     def append(self, row: list) -> None:
         self.rows.append(row)
@@ -169,6 +182,11 @@ def reset_for_tests():
 def pick(v, cause: str, scope: str, min_days: int, group: str = "all") -> pd.DataFrame:
     """The stuck orders of one cause in the chosen part of the past. scope is today / week / month / older, or
     custom (waiting min_days days or more). Oldest first, as the dashboard shows them."""
+    if cause == "payment":      # v is the parsed PO data; group = "crm:Kiran" or "sp:Piyush"; scope = todo / overdue / due / all
+        try:
+            return pays.nudge_rows(v, group, scope)
+        except (KeyError, ValueError):
+            raise NudgeError("Choose a person and which POs to send: to do today, overdue, due soon or all open.")
     if cause == "enquiry":      # v is the parsed enquiry data; group = what the enquiry is about ("all" = every open one)
         try:
             rows = enqs.open_rows(v, group or "all")[1]
@@ -208,6 +226,41 @@ def compose(person: Person, rows: pd.DataFrame, cause: str, scope: str, min_days
             + "\n".join(lines) + more + f"\n{CLOSING[cause]}{link}")
 
 
+def compose_payment(person: Person, rows: pd.DataFrame, group: str, scope: str) -> str:
+    role = group.partition(":")[0]
+    n = len(rows)
+    total = float(rows["amount_n"].sum())
+    amt = f"₹{total / 1e5:.1f} L" if total >= 1e5 else f"₹{total:,.0f}"
+    lines = []
+    for _, r in rows.head(MAX_LINES).iterrows():
+        a = float(r["amount_n"])
+        a = f"₹{a / 1e5:.1f}L" if a >= 1e5 else f"₹{a:,.0f}"
+        tag = {"past_limit": "at risk of cancellation", "overdue": "overdue", "due_soon": "due soon", "not_sent": "PO not sent"}.get(r["bucket"], "")
+        if r.get("held"):
+            tag = f"part payment received, balance ₹{max(float(r['amount_n']) - float(r['part_paid_n']), 0):,.0f}, on hold"
+        elif r.get("promise_kept_wait") or r.get("promise_broken"):
+            tag = (tag + ", " if tag else "") + f"client promised {r['promised']:%d %b}"
+        lines.append(f"- {r['client']} ({a}, day {int(r['days_out'])}{', ' + tag if tag else ''})")
+    more = f"\n...and {n - MAX_LINES} more" if n > MAX_LINES else ""
+    url = os.getenv("NUDGE_DASHBOARD_URL", "").strip()
+    link = f"\nFull list: {url}" if url else ""
+    what = f"POs to follow up ({PAYMENT_SCOPES[scope]})" if role == "crm" else f"of your clients' POs waiting for payment ({PAYMENT_SCOPES[scope]})"
+    close = ("Please call the clients and record each follow-up in the form." if role == "crm" else
+             "Please follow up with these clients for payment and tell the team.")
+    if role == "sp" and ((rows["bucket"] == "past_limit") & ~rows["held"]).any():
+        close += f" POs past {pays.LIMIT_DAYS} days will be cancelled if payment is not received."
+    return f"{person.name}, {n} {what}, {amt} in all:\n" + "\n".join(lines) + more + f"\n{close}{link}"
+
+
+def payment_recipient(outbox, group: str) -> list[Person]:
+    name = group.partition(":")[2].strip()
+    hit = [p for p in outbox.staff() if p.name.strip().casefold() == name.casefold()]
+    if not hit:
+        raise NudgeError(f"{name.title()} is not in the Staff tab of the nudges sheet. Add a row with NAME, "
+                         f"WHATSAPP NUMBER and CAUSES (payment) to send to this person.")
+    return hit[:1]
+
+
 def recipients(outbox, cause: str) -> list[Person]:
     people = [p for p in outbox.staff() if cause in p.causes]
     if not people:
@@ -229,13 +282,14 @@ def preview(outbox, orders_view, cause: str, scope: str, min_days: int = 0, grou
     if cause not in ASK:
         raise NudgeError("Unknown cause.")
     rows = pick(orders_view, cause, scope, min_days, group)
-    people = recipients(outbox, cause)
-    key = (cause, group if cause == "enquiry" else "", scope, min_days if scope == "custom" else 0)
+    people = payment_recipient(outbox, group) if cause == "payment" else recipients(outbox, cause)
+    key = (cause, group if cause in ("enquiry", "payment") else "", scope, min_days if scope == "custom" else 0)
     last = _sent.get(key)
     return {
         "count": len(rows),
         "to": [p.name for p in people],
-        "message": compose(people[0], rows, cause, scope, min_days) if len(rows) else "",
+        "message": (compose_payment(people[0], rows, group, scope) if cause == "payment"
+                    else compose(people[0], rows, cause, scope, min_days)) if len(rows) else "",
         "already_sent_minutes": int((time.time() - last) // 60) if last and time.time() - last < COOLDOWN_SECONDS else None,
         "test_mode": outbox.test_mode,
     }
@@ -244,14 +298,16 @@ def preview(outbox, orders_view, cause: str, scope: str, min_days: int = 0, grou
 def send(outbox, orders_view, cause: str, scope: str, min_days: int = 0, force: bool = False, group: str = "all") -> dict:
     p = preview(outbox, orders_view, cause, scope, min_days, group)
     if not p["count"]:
-        raise NudgeError(f"There are no {'enquiries' if cause == 'enquiry' else 'orders'} in this selection, so nothing was sent.")
+        raise NudgeError(f"There are no {'enquiries' if cause == 'enquiry' else 'POs' if cause == 'payment' else 'orders'} in this selection, so nothing was sent.")
     if p["already_sent_minutes"] is not None and not force:
         raise NudgeError(f"This list was already sent {p['already_sent_minutes']} minutes ago. Send it again only if you mean to.")
     rows = pick(orders_view, cause, scope, min_days, group)
     stamp = now_ist().strftime("%d %b %H:%M:%S")
-    for person in recipients(outbox, cause):
+    people = payment_recipient(outbox, group) if cause == "payment" else recipients(outbox, cause)
+    for person in people:
+        text = compose_payment(person, rows, group, scope) if cause == "payment" else compose(person, rows, cause, scope, min_days)
         # a leading apostrophe keeps the phone number as text in the sheet
-        outbox.append([stamp, person.name, "'" + person.number, compose(person, rows, cause, scope, min_days), "",
-                       f"DASHBOARD {cause} {scope}" + (f" {min_days}d" if scope == "custom" else "") + (f" {group}" if cause == "enquiry" else ""), ""])
-    _sent[(cause, group if cause == "enquiry" else "", scope, min_days if scope == "custom" else 0)] = time.time()
+        outbox.append([stamp, person.name, "'" + person.number, text, "",
+                       f"DASHBOARD {cause} {scope}" + (f" {min_days}d" if scope == "custom" else "") + (f" {group}" if cause in ("enquiry", "payment") else ""), ""])
+    _sent[(cause, group if cause in ("enquiry", "payment") else "", scope, min_days if scope == "custom" else 0)] = time.time()
     return {**p, "sent": True, "sent_at": stamp}

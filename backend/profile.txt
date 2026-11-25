@@ -1,0 +1,757 @@
+Key: flo-wing-dashboard@flo-wing-dashboard.iam.gserviceaccount.com   (20 Nov 2026 16:51)
+
+=== CRM · ENQUIRY SHEET 2025-2026
+  9 tabs: NEW DATA, daily enquiry update , BILL T LOGISTIC ENQUIRY, PARTY BILLING ISSUE , KURTI , PANT , DUPTTA MISSING QUERY, DAILY CALL LOGS, Sheet8, Sheet9, OLD DATA
+  --- tab 'NEW DATA' (grid 1849 × 26)
+    headings in row 2 · 1660 filled rows · 10 columns
+       1. S. NO                                   61% filled · number
+       2. DATE                                   100% filled · date · 02 Feb 2026 → 21 Oct 2026
+       3. PARTY NAME                             100% filled · text · 1231 different values
+       4. ENQUIRY ABOUT                           98% filled · text · 366 different values
+       5. GIVEN TO                                 6% filled · text · 47 different values
+       6. REMARKS                                 52% filled · text · 795 different values
+       7. STATUS                                 100% filled · text · values: SOLVED 1652
+       8. DAYS                                     0% filled · text · 3 different values
+       9. FOLLOW 1                                12% filled · text · 146 different values
+      10. (no heading)                             1% filled · text · 12 different values
+    rows per month (DATE): Apr 26 447, May 26 229, Jun 26 344, Jul 26 362, Aug 26 150, Oct 26 29
+    [1s]
+  --- tab 'daily enquiry update ' (grid 998 × 29)
+    headings in row 1 · 407 filled rows · 11 columns
+       1. (no heading)                            27% filled · number
+       2. DATE                                    58% filled · date · 12 Oct 2026 → 28 Oct 2026
+       3. CLIENT NAME                             91% filled · text · 315 different values
+       4. Number                                  18% filled · number
+       5. ENQUIRY ABOUT                           86% filled · text · 149 different values
+       6. REMARK                                  82% filled · text · 311 different values
+       7. SOLVE/ PENDING                          77% filled · text · values: SOLVED 276, IN PROCESS 37, PENDING 1
+       8. FOLLOW UP                               14% filled · text · 56 different values
+       9. DATE & TIME                             98% filled · date · 12 Oct 2026 → 20 Nov 2026
+      10. Client reply                             3% filled · text · 13 different values
+      11. (no heading)                             0% filled · text · 1 different values
+    rows per month (DATE & TIME): Oct 26 274, Nov 26 125
+    [1s]
+  --- tab 'BILL T LOGISTIC ENQUIRY' (grid 1007 × 27)
+    headings in row 2 · 134 filled rows · 12 columns
+       1. SNO.                                    52% filled · number
+       2. DATE                                    99% filled · date · 03 Jun 2026 → 31 Oct 2026
+       3. CLIENT NAME                            100% filled · text · 129 different values
+       4. ENQUIRY ABOUT                           99% filled · text · 42 different values
+       5. REMARK                                  93% filled · text · 124 different values
+       6. GIVEN                                    4% filled · text · values: DEEPAK BHAIYA 5, BADE DEEPAK BHAIYA 1
+       7. SOLVE/ PENDING                          96% filled · text · values: SOLVE 126, PENDING 2
+       8. FOLLOW UP -1                            60% filled · text · 68 different values
+       9. (no heading)                            43% filled · text · 56 different values
+      10. (no heading)                             7% filled · text · 9 different values
+      11. (no heading)                             1% filled · text · 1 different values
+      12. (no heading)                             1% filled · text · 1 different values
+    rows per month (DATE): Jun 26 26, Jul 26 22, Aug 26 35, Sep 26 30, Oct 26 20
+    [2s]
+  --- tab 'PARTY BILLING ISSUE ' (grid 999 × 29)
+    headings in row 2 · 84 filled rows · 9 columns
+       1. SNO.                                    37% filled · number
+       2. DATE                                    98% filled · date · 01 Jun 2026 → 10 Oct 2026
+       3. CLIENT NAME                            100% filled · text · 82 different values
+       4. (no heading)                             2% filled · number
+       5. ENQUIRY ABOUT                           98% filled · text · 38 different values
+       6. REMARK                                  95% filled · text · 79 different values
+       7. SOLVE/ PENDING                          77% filled · text · values: SOLVE 63, IN PROCESS 2
+       8. FOLLOW UP                               61% filled · text · 38 different values
+       9. (no heading)                            12% filled · date · 17 Oct 2026 → 17 Oct 2026
+    rows per month (DATE): Jun 26 35, Jul 26 16, Sep 26 21, Oct 26 10
+    [2s]
+  --- tab 'KURTI , PANT , DUPTTA MISSING QUERY' (grid 1000 × 27)
+    headings in row 1 · 3 filled rows · 9 columns
+       1. SNO.                                    33% filled · number
+       2. DATE                                    67% filled · date · 12 Oct 2026 → 12 Oct 2026
+       3. CLIENT NAME                            100% filled · text · 3 different values
+       4. ENQUIRY ABOUT                          100% filled · text · 2 different values
+       5. REMARK                                   0% filled · empty
+       6. GIVEN                                    0% filled · empty
+       7. SOLVE/ PENDING                           0% filled · empty
+       8. FOLLOW UP -1                             0% filled · empty
+       9. (no heading)                           100% filled · date · 12 Oct 2026 → 12 Oct 2026
+    rows per month (date column): Oct 26 3
+    [2s]
+  --- tab 'DAILY CALL LOGS' (grid 1000 × 26)
+    headings in row 2 · 18 filled rows · 6 columns
+       1. SNo.                                    94% filled · number
+       2. CLIENT NAME                              6% filled · date · 19 Jun 2026 → 19 Jun 2026
+       3. CALL ABOUT                               0% filled · empty
+       4. INCOMING OR OUTGOING                     0% filled · empty
+       5. CALL MODE                                0% filled · empty
+       6. REMARK                                   0% filled · empty
+    rows per month (CLIENT NAME): Jun 26 1
+    [1s]
+  --- tab 'Sheet8' (grid 1000 × 26)
+    headings in row 2 · 8 filled rows · 5 columns
+       1. S.NO.                                   62% filled · number
+       2. DATE                                    88% filled · date · 20 Jul 2026 → 20 Jul 2026
+       3. CLIENT NAME                             88% filled · text · 7 different values
+       4. ABOUT                                   88% filled · text · 5 different values
+       5. REMARK                                  25% filled · text · 2 different values
+    rows per month (DATE): Jul 26 7
+    [1s]
+  --- tab 'Sheet9' (grid 1001 × 29)
+    headings in row 1 · 206 filled rows · 8 columns
+       1. (no heading)                             0% filled · text · 1 different values
+       2. DATE                                    99% filled · date · 15 Sep 2026 → 10 Oct 2026
+       3. CLIENT NAME                             99% filled · text · 186 different values
+       4. ENQUIRY ABOUT                           48% filled · phone
+       5. REMARK                                  89% filled · text · 181 different values
+       6. GIVEN                                   49% filled · text · 90 different values
+       7. SOLVE/ PENDING                          55% filled · text · values: SOLVE 97, IN PROCESS 15, SOLVE/ PENDING 1
+       8. FOLLOW UP -1                             0% filled · text · 1 different values
+    rows per month (DATE): Sep 26 160, Oct 26 43
+    [2s]
+  --- tab 'OLD DATA' (grid 4020 × 29)
+    headings in row 2 · 3082 filled rows · 14 columns
+       1. S. NO                                    0% filled · empty
+       2. DATE                                   100% filled · date · 10 Apr 2025 → 19 Jan 2026
+       3. PARTY NAME                             100% filled · text · 1897 different values
+       4. ENQUIRY ABOUT                           98% filled · text · 636 different values
+       5. GIVEN TO                                10% filled · text · 51 different values
+       6. REMARKS                                 46% filled · text · 675 different values
+       7. STATUS                                  99% filled · text · values: SOLVED 3051
+       8. DAYS                                     0% filled · text · 11 different values
+       9. FOLLOW 1                                18% filled · text · 421 different values
+      10. FOLLOW UP 2                              3% filled · text · 73 different values
+      11. FOLLOW UP 3                              1% filled · text · 17 different values
+      12. (no heading)                             0% filled · text · 9 different values
+      13. (no heading)                             0% filled · text · 6 different values
+      14. (no heading)                             0% filled · text · 2 different values
+    rows per month (DATE): Aug 25 77, Sep 25 328, Oct 25 242, Nov 25 220, Dec 25 230, Jan 26 149
+    [1s]
+
+=== Merchandiser · Flowing Vendor Details (Responses)
+  4 tabs: Form responses 1, Sheet4, Sheet3, Sheet2
+  --- tab 'Form responses 1' (grid 479 × 25)
+    headings in row 1 · 377 filled rows · 19 columns
+       1. Timestamp                              100% filled · date · 06 Sep 2022 → 14 Nov 2026
+       2. Email address                          100% filled · text · 346 different values
+       3. FIRM NAME                               99% filled · text · 351 different values
+       4. Owner's Name                           100% filled · text · 349 different values
+       5. Owner's Contact No.                     99% filled · phone
+       6. Co-Ordinator's Name                     99% filled · text · 344 different values
+       7. Co-Ordinator's Contact No.              99% filled · phone
+       8. Address                                 99% filled · text · 371 different values
+       9. GST No.                                 99% filled · text · 344 different values
+      10. E-Mail I.D.                             86% filled · text · 299 different values
+      11. Payment Structure (Days)                99% filled · text · 88 different values
+      12. Payment Structure (Discount%)           97% filled · text · 112 different values
+      13. Score                                    0% filled · empty
+      14. MSME registered or Not                  44% filled · text · values: REGISTERED (PLEASE S 109, NOT- REGISTERED (PLE 56
+      17. Fabric                                   0% filled · empty
+      19. Fabric                                   0% filled · empty
+    rows per month (Timestamp): Jun 26 17, Jul 26 17, Aug 26 30, Sep 26 10, Oct 26 3, Nov 26 1
+    [1s]
+  --- tab 'Sheet4' (grid 1000 × 26)
+    (empty)
+    [1s]
+  --- tab 'Sheet3' (grid 1000 × 26)
+    (empty)
+    [2s]
+  --- tab 'Sheet2' (grid 1000 × 26)
+    (empty)
+    [1s]
+
+=== Merchandiser · Vendor details sheet new
+  12 tabs: Sheet8, Code details, new updated sheet , Vendor Details , Jaipur Sheet , MM Agency, Raghani, Basic Suppliers, Classic Suppliers , premium suppliers , Heda ji , Agent details 
+  --- tab 'Sheet8' (grid 993 × 26)
+    headings in row 5 · 201 filled rows · 6 columns
+       1. 1                                       65% filled · number
+       2. MM Agency                               65% filled · text · values: DIRECT 41, RAGHANI 37, MM AGENCY 31, SHREE JI 15, JAWAHAR 6
+       3. AADHAV CREATION (JAIPUR) NM             65% filled · text · 130 different values
+       4. AADHAV CREATION (JAIPUR) NM-031          0% filled · empty
+       6. (no heading)                            35% filled · number
+    [1s]
+  --- tab 'Code details' (grid 4001 × 30)
+    headings in row 1 · 555 filled rows · 10 columns
+       1. (no heading)                             1% filled · text · 3 different values
+       2. CODE                                     7% filled · text · 37 different values
+       3. FLO                                    100% filled · number
+       4. CONTACT PERSON                          33% filled · number
+       5. CONTACT PERSON                          14% filled · text · 70 different values
+       6. City                                    65% filled · text · values: JAIPUR 202, AHMEDABAD 45, KOLKATA 37, MUMBAI 36, SURAT 24, DELHI 12, UTTAR PRADESH 2, WEST BANGAL 2, PALI 1, LUCKNOW 1, JODHOUR 1
+       7. (no heading)                             1% filled · text · 3 different values
+       8. Area                                    33% filled · text · 69 different values
+       9. msg                                     19% filled · text · values: YES 58, - 45
+      10. Agency                                  12% filled · text · values: MM AGENCY 32, DIRECT 24, RAGANI 3, HEDA BROKER 2, RAGHANI 2, HEDA 1, RAGHAANI 1, VIRAJ ENTERPRISE 1, MAHESHWARI AGENCY 1
+    [1s]
+  --- tab 'new updated sheet ' (grid 1000 × 27)
+    headings in row 1 · 635 filled rows · 10 columns
+       1. (no heading)                            99% filled · text · 614 different values
+       2. (no heading)                           100% filled · number
+       3. City                                    95% filled · text · 27 different values
+       4. (no heading)                            93% filled · text · 578 different values
+       5. PINCODE                                 85% filled · number
+       6. Active / Inactive                        3% filled · text · values: ACTIVE 9, INACTIVE 7
+       7. Agency                                   0% filled · empty
+      10. (no heading)                             0% filled · text · 1 different values
+    [2s]
+  --- tab 'Vendor Details ' (grid 1001 × 27)
+    headings in row 1 · 642 filled rows · 13 columns
+       1. (no heading)                            99% filled · text · 617 different values
+       2. Department                              26% filled · text · values: CLASSIC 88, BASIC + CLASSIC 45, PREMIUM 28, BASIC 4, SATI KREATION (KO 1
+       3. City                                    98% filled · text · 23 different values
+       4. vender Code                            100% filled · number
+       5. Address                                 98% filled · text · 616 different values
+       6. PINCODE                                 93% filled · number
+       7. NUMBER                                  82% filled · phone
+       8. AGENT NAME                              97% filled · text · 122 different values
+       9. AGENT CODE                              72% filled · text · 39 different values
+      10. (no heading)                            29% filled · text · values: N/A 138, DIRECT 27, MENTION IN SHEET 13, 34 1, CHANGE TO RTPL 1, NAME ME AJECI CODE C 1, LAST DEALING WAS DIR 1, RECHECK CODE 1, SAME CODE= 561 1, CHECK AGENCY (MENTIO 1, SAME CODE= 516 1, N/F 1
+      11. (no heading)                             0% filled · text · 1 different values
+      13. FW01- 1                                  0% filled · empty
+    [1s]
+  --- tab 'Jaipur Sheet ' (grid 757 × 28)
+    headings in row 3 · 230 filled rows · 4 columns
+       1. 1                                      100% filled · number
+       2. A FOR YOU FASHION (JAIPUR)             100% filled · text · 225 different values
+       3. Working                                 77% filled · text · values: WORKING 178
+       4. Sanganer                                31% filled · text · 17 different values
+    [1s]
+  --- tab 'MM Agency' (grid 1009 × 26)
+    headings in row 14 · 50 filled rows · 3 columns
+       1. BALAJI FEB TEX (JAIPUR)                100% filled · text · 49 different values
+       2. 135                                     86% filled · number
+       3. 19 Feb 2025 onwards                      0% filled · empty
+    [2s]
+  --- tab 'Raghani' (grid 1006 × 26)
+    headings in row 1 · 134 filled rows · 3 columns
+       1. Raghani                                100% filled · text · 130 different values
+       2. (no heading)                            96% filled · number
+       3. (no heading)                             1% filled · text · 1 different values
+    [1s]
+  --- tab 'Basic Suppliers' (grid 1000 × 26)
+    (empty)
+    [2s]
+  --- tab 'Classic Suppliers ' (grid 1000 × 26)
+    (empty)
+    [2s]
+  --- tab 'premium suppliers ' (grid 1000 × 26)
+    (empty)
+    [1s]
+  --- tab 'Heda ji ' (grid 1000 × 26)
+    headings in row 1 · 0 filled rows · 1 columns
+       1. Heda Ji                                  0% filled · empty
+    [2s]
+  --- tab 'Agent details ' (grid 1000 × 28)
+    headings in row 6 · 445 filled rows · 7 columns
+       1. ROOP SANGAM                            100% filled · text · 437 different values
+       2. 6                                      100% filled · number
+       3. 97996 73269                             38% filled · number
+       4. Chandan Ji                              18% filled · text · 70 different values
+       5. HEDA JI                                 60% filled · text · 14 different values
+       6. BAPU BAZAR                              34% filled · text · 62 different values
+       7. Yes                                     10% filled · text · values: YES 45
+    [2s]
+
+=== Merchandiser · Supplier's Enquiry Sheet
+  17 tabs: Terms Approval, Sheet28, ahemdabad working , Purchase Order Outstanding Dashboard, Sheet1, PENDING PO , worksheet, SHAILY , ap for women , Supplier's Enquiry Sheet , Sheet18, Sheet25, Sheet27, Sheet26, Sheet24, purchase issues , Inactive25-26
+  --- tab 'Terms Approval' (grid 1000 × 27)
+    headings in row 2 · 9 filled rows · 15 columns
+       1. (no heading)                           100% filled · date · 01 Sep 2026 → 31 Oct 2026
+       2. Supplier                               100% filled · text · 9 different values
+       3. Supplier Code                           78% filled · number
+       4. Contact Person                          11% filled · phone
+       5. Payment Days                            78% filled · number
+       6. Discount                                89% filled · text · 8 different values
+       7. Other Special Terms                      0% filled · empty
+       8. Confirmed by                            67% filled · text · 4 different values
+       9. Confirmed on                            67% filled · text · 6 different values
+      10. Approval Status                         67% filled · text · values: APPROVED 5, PENDING 1
+      11. Approved By                             56% filled · text · values: SHAILY 5
+      12. Date/Time                               56% filled · date · 01 Sep 2026 → 03 Sep 2026
+      13. Entry by                                67% filled · text · values: AMIT 6
+      14. Entry Date                              67% filled · date · 01 Sep 2026 → 04 Sep 2026
+      15. Entry Checked                           56% filled · date · 01 Sep 2026 → 03 Sep 2026
+    rows per month (date column): Sep 26 6, Oct 26 3
+    [1s]
+  --- tab 'Sheet28' (grid 1000 × 26)
+    headings in row 3 · 19 filled rows · 2 columns
+       2. jp tex                                 100% filled · text · 19 different values
+    [1s]
+  --- tab 'ahemdabad working ' (grid 1000 × 31)
+    headings in row 2 · 59 filled rows · 31 columns
+       1. PODate                                  98% filled · date · 01 Jun 2026 → 20 Aug 2026
+       2. PONO                                   100% filled · text · 54 different values
+       3. SupplierName                            98% filled · text · 27 different values
+       4. SupplierCity                            98% filled · text · values: AHMEDABAD 58
+       5. Unit                                    98% filled · text · values: QTY 58
+       6. OrderedQty                             100% filled · number
+       7. OrderedMTRs                              0% filled · empty
+       8. AmountBFT                              100% filled · number
+       9. ReceivedQty                             34% filled · number
+      10. ReceivedMTRs                             0% filled · empty
+      11. ExcessQty                                0% filled · empty
+      12. ExcessMTRs                               0% filled · empty
+      13. BalQty                                  95% filled · number
+      14. BalMTRs                                  0% filled · empty
+      15. BalAmountBFT                            95% filled · number
+      16. CloseQty                                 0% filled · empty
+      17. CloseMTRs                                0% filled · empty
+      18. SaleOrderNo                              0% filled · empty
+      19. SOParty                                  0% filled · empty
+      20. DeliveryDate                            98% filled · date · 23 Jun 2026 → 31 Oct 2026
+      21. OverDueDays                             93% filled · number
+      22. Days 0-30                               29% filled · number
+      23. Days 31-60                              17% filled · number
+      24. Days 61-90                               0% filled · empty
+      25. Days 90-120                              0% filled · empty
+      26. Days 120>>                               0% filled · empty
+      27. Days 0-30 MTRs                           0% filled · empty
+      28. Days 31-60 MTRs                          0% filled · empty
+      29. Days 61-90 MTRs                          0% filled · empty
+      30. Days 90-120 MTRs                         0% filled · empty
+      31. Days 120>> MTRs                          0% filled · empty
+    rows per month (PODate): Jun 26 29, Jul 26 13, Aug 26 16
+    [2s]
+  --- tab 'Purchase Order Outstanding Dashboard' (grid None × None)
+    ✗ HTTP 400: Invalid range: 'Purchase Order Outstanding Dashboard'
+  --- tab 'Sheet1' (grid 1000 × 29)
+    headings in row 2 · 73 filled rows · 11 columns
+       1. S. NO                                   78% filled · number
+       2. DATE                                    79% filled · date · 05 Jun 2025 → 12 Nov 2026
+       3. PARTY NAME                             100% filled · text · 55 different values
+       4. ENQUIRY ABOUT                           81% filled · text · 48 different values
+       5. CONCERNED PERSON                        74% filled · text · 27 different values
+       6. Follow Up                               85% filled · text · values: NIDHI 38, KANCHAN 15, GUNGUN 8, SHAILY 1
+       7. REMARKS                                 21% filled · phone
+       8. STATUS                                  82% filled · text · values: SOLVED 48, IN PROCESS 8, UNSOLVED 4
+       9. FOLLOW 1                                36% filled · text · 24 different values
+      10. FOLLOW UP 2                              4% filled · text · 3 different values
+      11. FOLLOW UP                                0% filled · empty
+    rows per month (DATE): Jun 25 28, Nov 25 9, Jan 26 17, Apr 26 2, Oct 26 1, Nov 26 1
+    [2s]
+  --- tab 'PENDING PO ' (grid 1010 × 28)
+    headings in row 2 · 0 filled rows · 15 columns
+       1. order date                               0% filled · empty
+       2. Name                                     0% filled · empty
+       3. Order placed                             0% filled · empty
+       4. Details received                         0% filled · empty
+       5. PO                                       0% filled · empty
+       6. lables                                   0% filled · empty
+      15. pendind PO                               0% filled · empty
+    [1s]
+  --- tab 'worksheet' (grid 1000 × 26)
+    headings in row 1 · 36 filled rows · 9 columns
+       1. PurRet Date                             97% filled · date · 09 Jul 2025 → 26 Jan 2026
+       2. Qty                                    100% filled · number
+       3. Amount                                 100% filled · number
+       4. BeforeTax                              100% filled · number
+       6. PurRet Date                             19% filled · text · 7 different values
+       7. Qty                                     22% filled · number
+       8. Amount                                  22% filled · number
+       9. BeforeTax                               22% filled · number
+    rows per month (PurRet Date): Aug 25 5, Sep 25 5, Oct 25 2, Nov 25 3, Dec 25 7, Jan 26 10
+    [1s]
+  --- tab 'SHAILY ' (grid 1000 × 26)
+    headings in row 6 · 13 filled rows · 4 columns
+       2. PO Data of No. of po orders and qty re 100% filled · text · 13 different values
+       3. June-July-Aug-Sept                       8% filled · text · 1 different values
+       4. done                                     0% filled · empty
+    [2s]
+  --- tab 'ap for women ' (grid 997 × 29)
+    headings in row 4 · 20 filled rows · 10 columns
+       1. DESIGN                                  30% filled · number
+       2. BARCODE                                 95% filled · text · 19 different values
+       3. Returned                                80% filled · number
+       4. purchase 1                              80% filled · text · 14 different values
+       5. client                                  75% filled · text · 11 different values
+       6. 1st GR                                  50% filled · number
+       7. purchase 2                              45% filled · text · 4 different values
+       8. 2nd GR                                  10% filled · text · 2 different values
+       9. Received back                            5% filled · date · 28 Apr 2026 → 28 Apr 2026
+      10. Freight expenses                         5% filled · text · 1 different values
+    rows per month (Received back): Apr 26 1
+    [1s]
+  --- tab 'Supplier's Enquiry Sheet ' (grid 1003 × 26)
+    headings in row 1 · 58 filled rows · 24 columns
+       2. (no heading)                           100% filled · number
+       3. KOLKATA (pending po)                    71% filled · text · 36 different values
+       4. order date                              64% filled · text · 16 different values
+       5. status                                  59% filled · text · values: DONE 33, - 1
+       6. (no heading)                           100% filled · number
+       7. PENDING PO MUMBAI                       24% filled · text · 11 different values
+       8. ORDER DATE                              24% filled · text · 12 different values
+       9. STATUS                                  22% filled · text · values: DONE 13
+      11. (no heading)                           100% filled · number
+      12. PENDING PO SURAT                        16% filled · text · 7 different values
+      13. ORDER DATE                              16% filled · text · 8 different values
+      14. STATUS                                  12% filled · text · values: DONE 7
+      16. (no heading)                            59% filled · number
+      17. AHMEDABAD PO                            59% filled · text · 29 different values
+      18. ORDER DATE                              52% filled · text · values: 22 JUNE ORDER 15, 20 JUNE ORDER 6, 21/07/2026 2, 18 JUNE ORDER 1, 16 JUNE ORDER 1, 28 APRIL ORDER 1, 04 JULY ORDER 1, 07 JULY ORDER 1, 22/07/2026 ORDER 1, 22/07/2026 ORDER (RE 1
+      19. STATUS                                  47% filled · text · values: DONE 27
+      21. (no heading)                            57% filled · number
+      22. JAIPUR PO                               66% filled · text · 31 different values
+      23. ORDER DATE                              34% filled · text · 15 different values
+      24. STATUS                                  10% filled · text · values: DONE 6
+    [2s]
+  --- tab 'Sheet18' (grid 1650 × 52)
+    headings in row 10 · 1451 filled rows · 35 columns
+       2. 7                                        1% filled · number
+       3. ROOPRANG                                 1% filled · text · 11 different values
+       4. samples ayege with clr chart             1% filled · text · 10 different values
+       6. 7                                        1% filled · number
+       7. amaash                                   0% filled · text · 5 different values
+       9. 7                                        1% filled · number
+      10. COTTON WARDROBES                         0% filled · text · 4 different values
+      12. 7                                        1% filled · number
+      13. Fab craft                                1% filled · text · 14 different values
+      15. 7                                        1% filled · number
+      16. anjani                                   0% filled · text · 7 different values
+      18. MEERA ETHNIC                             1% filled · text · 12 different values
+      19. 02 NOV, 13 NOV 2026                      1% filled · date · 02 Nov 2026 → 13 Nov 2026
+      21. 6                                        1% filled · number
+      22. kamal fashion                            1% filled · text · 14 different values
+      24. 16TH NOV                                 1% filled · text · values: 16TH NOV 14
+      25. 23 Nov 2026                              1% filled · text · values: 23 NOV 2026 14
+      26. (no heading)                             1% filled · text · values: KAPIL TILL 17 5, NAVEEN TILL 17 4
+      27. (no heading)                             0% filled · text · 4 different values
+      35. FWPO-00486/2627                        100% filled · text · 151 different values
+    rows per month (02 NOV, 13 NOV 2026): Nov 26 10
+    [2s]
+  --- tab 'Sheet25' (grid 1000 × 27)
+    headings in row 3 · 30 filled rows · 14 columns
+       2. (no heading)                            43% filled · number
+       3. 1                                       73% filled · text · 22 different values
+       4. payal ent.                              67% filled · text · 17 different values
+       5. 22 Oct                                  70% filled · text · 13 different values
+       6. (no heading)                            20% filled · text · 6 different values
+       7. 1                                       33% filled · number
+       8. payal ent.                              60% filled · text · 17 different values
+       9. 22 Oct                                  50% filled · text · 12 different values
+      10. (no heading)                            10% filled · text · values: DONE 3
+      11. 1                                       47% filled · number
+      12. jp tex                                  43% filled · text · 13 different values
+      13. 29 Oct                                  43% filled · text · 6 different values
+      14. hansraj                                 20% filled · text · 3 different values
+    [1s]
+  (+5 more tabs not profiled)
+
+=== Merchandiser · DUES PAYMENT SUPPLIERS
+  55 tabs: 18th sep., 4th Sep., 19TH August , 4TH AUGUST, 20th July, 5TH JULY, 28th may, Sheet16, 28TH March,  5th March, 20th FEB, 5th FEB, 18th January, 5th JANUARY, 20th DECEMBER,  5TH DECEMBER, 20th nov, 4th Nov, 19/10/2019, 17TH OCT., 4TH OCT., 18th Feb., 3RD FEB, 18TH JAN, 2nd Jan, 17th Dec., 3RD DEC.,  17th Nov., 3RD OCT., 3RD MARCH, 19TH MARCH, 19TH AUGUST, 5th Aug,  5TH JULY 21, 3RD APRIL, August 18th, 16TH FEB, 7TH FEB, JAN 18TH, 4TH JAN, 19TH NOV, 4TH NOV., OCT.4TH, 19TH SEP., Updated Sheet , FIF0 Querries , List of creditor's, MM Agency Brokerage, Begani , Raghani Ahemdabad , 23RD MARCH, 3 MARCH, NOV. 4TH, TCS SHEET, SHEET OF VENDOR WITH BROKER
+  --- tab '18th sep.' (grid 1000 × 26)
+    headings in row 2 · 214 filled rows · 11 columns
+       1. Date                                    82% filled · text · 67 different values
+       2. Ref. No.                                83% filled · text · 177 different values
+       3. Party's Name                            82% filled · text · 37 different values
+       4. Opening                                 82% filled · number
+       5. PENDING                                 82% filled · number
+       6. Dis.                                    19% filled · number
+       7. NET PAYABLE                             99% filled · number
+       8. DUE DAYS                                15% filled · number
+       9. DISCOUNT                                15% filled · number
+      10. DUES ON                                 82% filled · text · 61 different values
+      11. (no heading)                            26% filled · text · values: OK 42, OKAY 11, OKAU 1, OKAYU 1, PK 1
+    [0s]
+  --- tab '4th Sep.' (grid 1031 × 26)
+    headings in row 2 · 191 filled rows · 12 columns
+       1. Date                                    81% filled · text · 60 different values
+       2. Ref. No.                                82% filled · text · 157 different values
+       3. Party's Name                            81% filled · text · 34 different values
+       4. Opening                                 81% filled · text · 142 different values
+       5. PENDING                                 81% filled · text · 146 different values
+       6. Dis.                                    40% filled · text · 44 different values
+       7. NET PAYABLE                             99% filled · number
+       8. DUE DAYS                                17% filled · number
+       9. DISCOUNT                                17% filled · number
+      10. DUES ON                                 81% filled · text · 57 different values
+      11. (no heading)                            25% filled · text · values: OKAY 46, -30000 1
+      12. (no heading)                            13% filled · number
+    [1s]
+  --- tab '19TH August ' (grid 1007 × 26)
+    headings in row 2 · 197 filled rows · 11 columns
+       1. Date                                    82% filled · text · 64 different values
+       2. Ref. No.                                83% filled · text · 163 different values
+       3. Party's Name                            82% filled · text · 34 different values
+       4. Opening                                 82% filled · text · 149 different values
+       5. PENDING                                 82% filled · text · 150 different values
+       6. Dis.                                    41% filled · number
+       7. NET PAYABLE                             99% filled · number
+       8. DUE DAYS                                15% filled · number
+       9. DISCOUNT                                15% filled · number
+      10. DUES ON                                 81% filled · text · 62 different values
+      11. (no heading)                            27% filled · text · values: OK 54
+    [2s]
+  --- tab '4TH AUGUST' (grid 1000 × 26)
+    headings in row 2 · 240 filled rows · 11 columns
+       1. Date                                    85% filled · text · 68 different values
+       2. Ref. No.                                85% filled · text · 203 different values
+       3. Party's Name                            85% filled · text · 37 different values
+       4. Opening                                 85% filled · text · 185 different values
+       5. PENDING                                 85% filled · text · 188 different values
+       6. Dis.                                    39% filled · number
+       7. NET PAYABLE                             99% filled · number
+       8. DUE DAYS                                13% filled · number
+       9. DISCOUNT                                14% filled · number
+      10. DUES ON                                 84% filled · text · 86 different values
+      11. (no heading)                            30% filled · text · values: OKAY 69, OAKY 2
+    [1s]
+  --- tab '20th July' (grid 1000 × 26)
+    headings in row 2 · 192 filled rows · 11 columns
+       1. Date                                    84% filled · text · 62 different values
+       2. Ref. No.                                85% filled · text · 164 different values
+       3. Party's Name                            84% filled · text · 28 different values
+       4. Opening                                 84% filled · text · 153 different values
+       5. PENDING                                 84% filled · text · 156 different values
+       6. Dis.                                    48% filled · number
+       7. NET PAYABLE                             99% filled · number
+       8. DUE DAYS                                14% filled · number
+       9. DISCOUNT                                14% filled · number
+      10. DUES ON                                 84% filled · text · 78 different values
+      11. (no heading)                            21% filled · text · values: OKAY 38, 1 LACK 1, OKAAY 1
+    [1s]
+  --- tab '5TH JULY' (grid 1000 × 26)
+    headings in row 2 · 234 filled rows · 11 columns
+       1. Date                                    88% filled · text · 65 different values
+       2. Ref. No.                                88% filled · text · 206 different values
+       3. Party's Name                            88% filled · text · 29 different values
+       4. Opening                                 88% filled · number
+       5. PENDING                                 88% filled · number
+       6. Dis.                                    52% filled · number
+       7. NET PAYABLE                            100% filled · number
+       8. DUE DAYS                                11% filled · number
+       9. DISCOUNT                                11% filled · number
+      10. DUES ON                                 83% filled · text · 102 different values
+      11. (no heading)                            29% filled · text · values: OK 68
+    [2s]
+  --- tab '28th may' (grid 1000 × 26)
+    headings in row 2 · 274 filled rows · 10 columns
+       1. Date                                    90% filled · text · 48 different values
+       2. Ref. No.                                91% filled · text · 248 different values
+       3. Party's Name                            91% filled · text · 27 different values
+       4. Opening                                 90% filled · text · 224 different values
+       5. PENDING                                 90% filled · text · 227 different values
+       6. Dis.                                    55% filled · number
+       7. NET PAYABLE                            100% filled · number
+       8. DUE DAYS                                 9% filled · number
+       9. DISCOUNT                                 9% filled · number
+      10. DUES ON                                 90% filled · text · 63 different values
+    [2s]
+  --- tab 'Sheet16' (grid 1000 × 26)
+    (empty)
+    [1s]
+  --- tab '28TH March' (grid 945 × 15)
+    headings in row 2 · 91 filled rows · 10 columns
+       1. Date                                    74% filled · text · 28 different values
+       2. Ref. No.                                75% filled · text · 68 different values
+       3. Party's Name                            75% filled · text · 23 different values
+       4. Opening                                 75% filled · text · 67 different values
+       5. PENDING                                 74% filled · text · 66 different values
+       6. DIS.                                    43% filled · number
+       7. NET PAYABLE                             98% filled · text · 86 different values
+       8. DUE DAYS                                23% filled · number
+       9. DISCOUNT                                23% filled · number
+      10. DUES ON                                 74% filled · text · 17 different values
+    [2s]
+  --- tab ' 5th March' (grid 995 × 26)
+    headings in row 2 · 104 filled rows · 10 columns
+       1. Date                                    76% filled · text · 37 different values
+       2. Ref. No.                                80% filled · text · 83 different values
+       3. Party's Name                            76% filled · text · 21 different values
+       4. Opening                                 76% filled · text · 77 different values
+       5. PENDING                                 76% filled · text · 77 different values
+       6. DIS.                                    33% filled · text · 27 different values
+       7. NET PAYABLE                             96% filled · text · 97 different values
+       8. DUE DAYS                                19% filled · number
+       9. DISCOUNT                                19% filled · number
+      10. DUES ON                                 74% filled · text · 20 different values
+    [1s]
+  --- tab '20th FEB' (grid 999 × 26)
+    headings in row 2 · 68 filled rows · 10 columns
+       1. Date                                    74% filled · text · 32 different values
+       2. Ref. No.                                76% filled · text · 52 different values
+       3. Party's Name                            76% filled · text · 18 different values
+       4. Opening                                 74% filled · text · 49 different values
+       5. PENDING                                 74% filled · text · 49 different values
+       6. DIS.                                    47% filled · number
+       7. NET PAYABLE                             97% filled · number
+       8. DUE DAYS                                22% filled · number
+       9. DISCOUNT                                22% filled · number
+      10. DUES ON                                 74% filled · text · 21 different values
+    [2s]
+  --- tab '5th FEB' (grid 990 × 26)
+    headings in row 2 · 71 filled rows · 10 columns
+       1. Date                                    77% filled · text · 27 different values
+       2. Ref. No.                                80% filled · text · 57 different values
+       3. Party's Name                            80% filled · text · 16 different values
+       4. Opening                                 77% filled · text · 54 different values
+       5. PENDING                                 77% filled · text · 54 different values
+       6. DIS.                                    35% filled · number
+       7. NET PAYABLE                             97% filled · number
+       8. DUE DAYS                                20% filled · number
+       9. DISCOUNT                                20% filled · number
+      10. DUES ON                                 77% filled · text · 15 different values
+    [2s]
+  (+43 more tabs not profiled)
+
+=== Merchandiser · ORDER STATUS REPORT
+  ✗ cannot read: not shared with this key's email — Share the sheet with it as Viewer
+
+=== Merchandiser · Order to vendors
+  5 tabs: 25-26, karigarwise qty, Pending po Data , for april 1st dispatching , Sheet9
+  --- tab '25-26' (grid 1071 × 32)
+    headings in row 2 · 40 filled rows · 14 columns
+       1. Date                                   100% filled · date · 12 Nov 2026 → 20 Nov 2026
+       2. City                                    88% filled · text · values: JAIPUR 33, KOLKATA 2
+       3. Supplier Name                          100% filled · text · 36 different values
+       4. Selection via                          100% filled · text · values: IN-HOUSE 17, FACTORY VISITED 14, WHATSAPP 9
+       5. Selected                                95% filled · text · values: YES 29, REWORKING 6, NO 3
+       6. PO DETAILS RECEIVED                     75% filled · text · values: YES 19, NO 10, PENDING 1
+       7. Order Placed                            78% filled · text · values: YES 19, NO 9, PENDING 3
+       8. PO ISSUED                               42% filled · text · values: PENDING 12, NO 4, YES 1
+       9. PO SENT TO VENDOR                       38% filled · text · values: PENDING 11, NO 4
+      10. No. Of Pcs                              20% filled · number
+      11. remarks                                  2% filled · text · 1 different values
+      12. TOTAL VISITS                             8% filled · text · 3 different values
+      13. ORDERS PLACED                            8% filled · text · 3 different values
+      14. PENDING PO DETAILS                       8% filled · text · 3 different values
+    rows per month (Date): Nov 26 40
+    [1s]
+  --- tab 'karigarwise qty' (grid 1013 × 39)
+    headings in row 2 · 79 filled rows · 32 columns
+       2. (no heading)                            99% filled · text · 65 different values
+       3. (no heading)                            35% filled · text · 27 different values
+       4. (no heading)                            35% filled · date · 24 Oct 2025 → 13 Dec 2025
+       5. (no heading)                            35% filled · date · 15 Mar 2025 → 15 Feb 2026
+       6. (Regular)                               25% filled · number
+       7. (no heading)                            25% filled · number
+       9. (Plus)                                   4% filled · number
+      10. (no heading)                             4% filled · number
+      12. (Regular)                               14% filled · number
+      13. (no heading)                            14% filled · number
+      15. (Plus)                                   4% filled · number
+      16. (no heading)                             4% filled · number
+      18. (Regular)                                1% filled · number
+      19. (no heading)                             1% filled · number
+      21. (Plus)                                   0% filled · empty
+      23. Saree                                    3% filled · number
+      24. (no heading)                             3% filled · number
+      26. Cape/Shrug Set                           3% filled · number
+      27. (no heading)                             3% filled · number
+      31. (no heading)                             1% filled · number
+      32. (no heading)                             1% filled · number
+    rows per month (date column): Oct 25 1, Nov 25 26, Dec 25 1
+    [2s]
+  --- tab 'Pending po Data ' (grid 1007 × 29)
+    headings in row 1 · 69 filled rows · 7 columns
+       1. S.NO                                    64% filled · number
+       2. Order Date                              97% filled · date · 01 Dec 2025 → 03 Feb 2026
+       3. Name of Supplier                        64% filled · text · 44 different values
+       4. order                                   49% filled · text · 16 different values
+       5. Quantity                                99% filled · number
+       6. Amount                                   0% filled · empty
+       7. Delivery Date                           72% filled · date · 15 Jan 2026 → 28 Apr 2026
+    rows per month (Order Date): Dec 25 7, Jan 26 55, Feb 26 5
+    [1s]
+  --- tab 'for april 1st dispatching ' (grid 986 × 27)
+    headings in row 1 · 8 filled rows · 4 columns
+       1. Updated on                              50% filled · date · 16 Mar 2026 → 23 Mar 2026
+       2. Design                                   0% filled · empty
+       3. (no heading)                            25% filled · text · 1 different values
+       4. Vendor                                 100% filled · text · 6 different values
+    rows per month (Updated on): Mar 26 4
+    [2s]
+  --- tab 'Sheet9' (grid 1001 × 26)
+    headings in row 2 · 8 filled rows · 8 columns
+       1. Colour                                 100% filled · text · 8 different values
+       2. Photo                                    0% filled · empty
+       3. MB Order                                88% filled · text · 6 different values
+       4. FLO Order                              100% filled · text · 8 different values
+       5. CMAI Order                             100% filled · number
+       6. BillWise Dispatch                      100% filled · text · 8 different values
+       7. total dispatched from psyna            100% filled · number
+       8. toal pending to be dispatched          100% filled · text · 8 different values
+    [1s]
+
+=== Logistics · Parcel Inward OutWard 2026-2027
+  1 tabs: Form Responses 1
+  --- tab 'Form Responses 1' (grid 8920 × 35)
+    headings in row 1 · 7922 filled rows · 15 columns
+       1. deliveryre                             100% filled · date (month/day order) · 04 Apr 2026 → 20 Nov 2026
+       2. SENDER NAME                            100% filled · text · 2641 different values
+       3. SENDER STATION                         100% filled · text · 420 different values
+       4. RECEIVE LOCATION                       100% filled · text · values: FW 22 GODAM 7849, FLO WING 43, FW SARAOGI 21, FW GR DEPARTMENT 7, GLO WING 1
+       5. BILTY NO                               100% filled · number
+       6. TRANSPORT NAME                         100% filled · text · 350 different values
+       7. NO OF PARCEL                           100% filled · number
+       8. PARCEL IMAGE                           100% filled · text · 7920 different values
+       9. BILTY IMAGE                             27% filled · text · 2126 different values
+      10. BILTY IMAGE                             99% filled · text · values: GOODS RETURN 3818, PURCHASE 3323, OTHER 596, TRANSFER OUT 140, X 1, GR DEPARTMENT 1
+      11. RECIEVED IN                             37% filled · text · values: GR DEPARTMENT 2962, GOODS RETURN 1
+      12. Column 1                                 0% filled · empty
+      13. Column 2                                 0% filled · empty
+    rows per month (deliveryre): Jun 26 1223, Jul 26 1269, Aug 26 1109, Sep 26 1066, Oct 26 712, Nov 26 308
+    [2s]
+
+=== GR · SALES RETURN 2025-2026
+  ✗ cannot read: not shared with this key's email — Share the sheet with it as Viewer
+
+=== Digital · INSTAGRAM CLIENTS
+  4 tabs: classic client , Premium client , Sheet2, Sheet3
+  --- tab 'classic client ' (grid 1002 × 32)
+    headings in row 2 · 526 filled rows · 14 columns
+       1. S NO.                                   83% filled · number
+       2. DATE                                    96% filled · date · 08 May 2025 → 31 Oct 2026
+       3. CLIENT'S NAME                           97% filled · text · 475 different values
+       4. CONECTING BY                            75% filled · text · values: INSTA MSG 388, CONECTING BY 5, CALLING 2, INSTA 1, INSTAGRAM 1
+       5. INSTA ID                                73% filled · text · 352 different values
+       6. MOBILE NUMBER                           75% filled · phone
+       7. UPDATED                                 22% filled · text · values: PHOTOS 71, VIDEO CALL 30, SARAOGI VISIT 7, UPDATED 5, TYPE 1
+       8. STATUS                                  25% filled · text · values: CONVERTED 64, NOT CONVERTED 61, STATUS 5
+       9. Followup by silky                       34% filled · text · 104 different values
+      10. Followup by love                        13% filled · text · 36 different values
+      11. (no heading)                             8% filled · number
+      12. (no heading)                            75% filled · text · 135 different values
+      13. (no heading)                             1% filled · text · 7 different values
+      14. (no heading)                             1% filled · text · 4 different values
+    rows per month (DATE): May 26 20, Jun 26 23, Jul 26 9, Aug 26 52, Sep 26 74, Oct 26 41
+    [1s]
+  --- tab 'Premium client ' (grid 1007 × 32)
+    headings in row 2 · 47 filled rows · 13 columns
+       1. S NO.                                   96% filled · number
+       2. DATE                                    96% filled · date · 11 Sep 2026 → 10 Nov 2026
+       3. CLIENT'S NAME                           94% filled · text · 43 different values
+       4. CONNECTING BY                           89% filled · text · values: INSTAGRAM 34, INSTGRAM 4, INSTA MSG 2, INSTAGRAM LUV 1, INGTAGRAM 1
+       5. Ledger Name                             21% filled · text · 10 different values
+       6. MOBILE NO/INSTA ID                      98% filled · phone
+       7. UPDATED                                 79% filled · text · values: PHOTOS 27, VIDEO CALL 9, UPDATED 1
+       8. STATUS                                  70% filled · text · values: NOT CONVERTED 24, CONVERTED 9
+       9. silky followup                          15% filled · text · values: MSG DROP 6, NO RESPONSE 1
+      10. premium team                            77% filled · text · 29 different values
+      11. (no heading)                            11% filled · text · 5 different values
+      12. (no heading)                             9% filled · text · 4 different values
+      13. GST                                      0% filled · empty
+    rows per month (DATE): Sep 26 34, Oct 26 8, Nov 26 2
+    [1s]
+  --- tab 'Sheet2' (grid 1758 × 22)
+    headings in row 1 · 1757 filled rows · 8 columns
+       1. Party                                  100% filled · text · 1757 different values
+       2. MobileNo                                54% filled · phone
+       3. GSTIN                                  100% filled · text · 1334 different values
+       4. Parcels                                100% filled · number
+       5. Qty                                    100% filled · number
+       6. BeforeTax                              100% filled · number
+       7. Amount                                 100% filled · number
+       8. BeforeTax NetAmount                    100% filled · number
+    [2s]
+  --- tab 'Sheet3' (grid 1794 × 26)
+    headings in row 2 · 1792 filled rows · 15 columns
+       1. Party                                  100% filled · text · 1792 different values
+       2. Parcels                                100% filled · number
+       3. Qty                                    100% filled · number
+       4. BeforeTax                              100% filled · number
+       5. Amount                                 100% filled · number
+      10. (no heading)                             1% filled · text · 18 different values
+      11. (no heading)                             1% filled · number
+      12. (no heading)                             1% filled · number
+      13. (no heading)                             1% filled · text · 8 different values
+      14. (no heading)                             1% filled · text · 8 different values
+      15. (no heading)                             1% filled · text · values: #N/A 12, 0 8
+    [1s]
+
+=== Digital · SEND PHOTOS TO CLIENTS
+  ✗ cannot read: not shared with this key's email — Share the sheet with it as Viewer

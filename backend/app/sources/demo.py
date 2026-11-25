@@ -18,10 +18,10 @@ from ..core import today_ist
 
 DEMO_SHEET_ID = "1HS61QM69oQXf6HeEeRo9GrM-2UaMzeiZtVxGptCPvSI"   # Flo-Wing Data Mirror
 DEMO_ENQUIRIES_ID = "1OqnAbP8B1VFw6ZJXT1_ZTMQLt4hQ3AWzzxjFCZcM3Bc"
-DEMO_PAYMENTS_ID = "1YtzUTartI0f1gDWwLFNDKsbwyYLO1cHeEhCL0ZaYQnE"
+DEMO_PAYMENTS_ID = "1XaVX7YA_7mYThyJctaXNguwWgaD-dRUgRi5dgeviT8Y"
 PAY_HEAD = ["Column 1", "Column 2", "Column 3", "CONTACT NO", "AMOUNT", "Column 6", "PO SEND", "PAYMENT STATUS",
             "Column 9", "Column 10", "FOLLOW UP -2", "FOLLOW UP -3", "FOLLOW UP -4", "FOLLOW UP -5", "FOLLOW UP -6",
-            "Column - 7", "Column 8", "Column 9", "Column 18", "Column 20"]
+            "Column - 7", "Column 8", "Column 9", "Column 18", "Column 20", "PART PAYMENT RECEIVED"]
 CRM = ["KIRAN", "KIRAN", "SURYANSH", "LOKESH"]
 NOTES_OPEN = ["call not pickup / msg drop", "msg drop", "karenge payment", "add more", "po shared", "aaj karenge payment"]
 
@@ -146,7 +146,8 @@ def _payments_grid(rng, today: date) -> list[list]:
                        f"FWSO-{n:05d}/2627", "9000000000", str(amount), rng.choice(SALES).upper(),
                        "YES" if rng.random() < 0.8 else "", status, owner] + notes
                 row += [""] * (19 - len(row))
-                rows.append(row + [owner])
+                part = str(round(amount * rng.choice([0.3, 0.5, 0.6]))) if (not status and age > 6 and rng.random() < 0.12) else ""
+                rows.append(row + [owner, part])
         d += timedelta(days=1)
     return rows
 
@@ -215,7 +216,7 @@ class DemoSheetSource:
             tabs[f"full payment rcvd orders {prev.strftime('%b').upper()} / {first.strftime('%b').upper()}."] = \
                 [["CLIENT NAME", "AMOUNT"], ["Someone", "1000"]]
             self._enquiries = _enquiry_tabs(rng, today)
-            self._payments = {"Form responses 1": _payments_grid(rng, today), "DASHBOARD": [["TEAM MEMBER"]]}
+            self._payments = {"PO LOG": _payments_grid(rng, today)}
             self._tabs, self._built_for = tabs, today
             return tabs
 
@@ -239,6 +240,25 @@ class DemoSheetSource:
         if sheet_id == DEMO_PAYMENTS_ID:
             return [list(r) for r in self._payments[tab]]
         return [list(r) for r in tabs[tab]]
+
+    def get_range(self, sheet_id, tab, a1, formatted=False):
+        """Rows/columns of a demo tab by A1 range (only plain A1:V9 / A:A shapes are needed)."""
+        import re
+        from ..core import col_to_idx
+        grid = self.get_values(sheet_id, tab, formatted)
+        m = re.fullmatch(r"([A-Z]+)(\d*):([A-Z]+)(\d*)", a1)
+        if not m:
+            raise ValueError(f"demo get_range: unsupported range {a1}")
+        c1, r1, c2, r2 = col_to_idx(m.group(1)), int(m.group(2) or 1), col_to_idx(m.group(3)), int(m.group(4) or len(grid))
+        out = []
+        for row in grid[r1 - 1:r2]:
+            cells = list(row[c1:c2 + 1])
+            while cells and cells[-1] in ("", None):
+                cells.pop()
+            out.append(cells)
+        while out and not out[-1]:
+            out.pop()
+        return out
 
     def get_formulas(self, sheet_id, tab, col_letter):
         return []

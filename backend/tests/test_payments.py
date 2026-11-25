@@ -89,3 +89,96 @@ def test_note_parsing():
     assert t == "call not pickup / msg drop" and ts == pd.Timestamp("2026-11-17 16:42:12")
     assert pm.parse_note("client cancel ke liye bol rahe hai")[1] is pd.NaT
     assert pm.parse_note("") is None
+
+
+# ------------------------------------------------------------------------------ PO follow-up (clock, views, window)
+def row2(ts, client, so, amount, sp, status, owner, *notes, po_send="YES"):
+    r = row(ts, client, so, amount, sp, status, owner, *notes)
+    r[6] = po_send
+    return r
+
+
+def test_clock_starts_at_po_share_note_and_buckets():
+    d = parse(
+        # order 15 Nov, PO shared 17 Nov -> day 3 on 20 Nov (on track), not day 5
+        row2("15/11/2026 10:00:00", "Late share", "FWSO-11/2627", 10000, "PIYUSH", "", "KIRAN",
+             "po shared  —  17/11/2026 11:00:00 AM"),
+        row2("13/11/2026 10:00:00", "Due soon", "FWSO-12/2627", 20000, "PIYUSH", "", "KIRAN"),
+        row2("11/11/2026 10:00:00", "Overdue", "FWSO-13/2627", 30000, "SAMEER", "", "LOKESH"),
+        row2("05/11/2026 10:00:00", "Past limit", "FWSO-14/2627", 40000, "SAMEER", "", "LOKESH"),
+        row2("20/11/2026 10:00:00", "Not sent", "FWSO-15/2627", 5000, "LUV", "", "KIRAN", po_send=""),
+    )
+    o = d["orders"].set_index("client")
+    assert o["days_out"].to_dict() == {"Late share": 3, "Due soon": 7, "Overdue": 9, "Past limit": 15, "Not sent": 0}
+    assert o["bucket"].to_dict() == {"Late share": "on_track", "Due soon": "due_soon", "Overdue": "overdue",
+                                     "Past limit": "past_limit", "Not sent": "on_track"}
+
+
+def test_person_view_today_list_and_overview():
+    d = parse(
+        row2("05/11/2026 10:00:00", "Past limit", "FWSO-14/2627", 40000, "SAMEER", "", "KIRAN"),
+        row2("13/11/2026 10:00:00", "Done today", "FWSO-12/2627", 20000, "SAMEER", "", "KIRAN",
+             "msg drop  —  20/11/2026 09:00:00 AM"),
+        row2("13/11/2026 10:00:00", "Paid", "FWSO-16/2627", 8000, "PIYUSH", "RECIEVED", "KIRAN",
+             "payment done  —  20/11/2026 09:30:00 AM"),
+    )
+    d["window"] = {"key": "60d", "label": "Last 60 days"}
+    p = pm.person_dashboard(d, "crm", "kiran", today=pd.Timestamp(TODAY))
+    assert p["todo"] == 1 and p["count"] == 2
+    assert p["table"]["rows"][0][0] == "Past limit" and "past the 10-day limit" in p["table"]["rows"][0][[c["key"] for c in p["table"]["columns"]].index("What to do")]
+    assert p["table"]["done"] == [False, True]
+    o = pm.po_overview(d, today=pd.Timestamp(TODAY))
+    kp = {k["id"]: k["value"] for k in o["kpis"]}
+    assert kp["open"] == 2 and kp["past"] == 1 and kp["paid_today"] == 1
+    sp = {r[0]: r for r in o["sales"]["rows"]}
+    assert sp["Sameer"][2] == 2 and sp["Piyush"][2] == 0
+
+
+def test_nudge_rows_scopes():
+    d = parse(row2("05/11/2026 10:00:00", "Past limit", "FWSO-14/2627", 40000, "SAMEER", "", "KIRAN"),
+              row2("14/11/2026 10:00:00", "Soon", "FWSO-12/2627", 20000, "SAMEER", "", "KIRAN"))
+    assert pm.nudge_rows(d, "sp:Sameer", "overdue")["client"].tolist() == ["Past limit"]
+    assert pm.nudge_rows(d, "crm:kiran", "due")["client"].tolist() == ["Soon"]
+    assert len(pm.nudge_rows(d, "crm:Kiran", "all")) == 2
+
+
+def test_duplicate_so_is_reported_and_counted_once():
+    d = parse(
+        row2("10/11/2026 10:00:00", "Alpha", "FWSO-77/2627", 10000, "PIYUSH", "", "KIRAN"),
+        row2("11/11/2026 10:00:00", "Alpha", "FWSO-77/2627", 10000, "PIYUSH", "", "KIRAN"),
+        row2("12/11/2026 10:00:00", "Beta", "FWSO-78/2627", 5000, "PIYUSH", "", "KIRAN"),
+    )
+    assert len(d["orders"]) == 2
+    assert any("1 SO number(s) appear on more than one row" in n["text"] and "FWSO-77/2627" in n["text"] for n in d["issues"])
+
+
+def test_calls_promised_date_and_part_payment_columns_are_optional_and_used():
+    import pandas as pd
+    from app.dashboards import payments as pays
+    t = pd.Timestamp("2026-11-24")
+    hdr = ["COLUMN 1", "COLUMN 2", "COLUMN 3", "AMOUNT", "COLUMN 6", "PO SEND", "PAYMENT STATUS", "COLUMN 9",
+           "n1", "n2", "COLUMN 20", "PROMISED DATE", "PART PAYMENT RECEIVED"]
+    def row(so, promised="", part=""):
+        return ["10/11/2026", "Client " + so, so, 100000, "Piyush", "YES", "", "Kiran",
+                "po shared  —  10/11/2026 10:00:00 AM", "called, will pay  —  12/11/2026 12:00:00 PM", "", promised, part]
+    grid = [hdr, row("FWSO-1"), row("FWSO-2", promised="30/11/2026"), row("FWSO-3", promised="20/11/2026"), row("FWSO-4", part="40000")]
+    d = pays.parse_payments(grid, today=t)["orders"].set_index("so")
+    assert d.loc["FWSO-1", "calls"] == 1
+    assert d.loc["FWSO-1", "todo"] and not d.loc["FWSO-2", "todo"]       # promise still ahead: wait
+    assert d.loc["FWSO-3", "promise_broken"] and d.loc["FWSO-3", "todo"]
+    assert d.loc["FWSO-4", "held"] and d.loc["FWSO-4", "part_paid_n"] == 40000
+
+
+def test_person_report_numbers_agree_with_overview():
+    d = parse(
+        row2("05/11/2026 10:00:00", "Past limit", "FWSO-14/2627", 40000, "SAMEER", "", "KIRAN"),
+        row2("11/11/2026 10:00:00", "Overdue", "FWSO-13/2627", 30000, "SAMEER", "", "LOKESH"),
+        row2("13/11/2026 10:00:00", "Paid", "FWSO-16/2627", 30000, "SAMEER", "RECIEVED", "KIRAN",
+             "payment done  —  20/11/2026 09:30:00 AM"),
+    )
+    r = pm.person_report(d, "sp", "sameer", today=pd.Timestamp(TODAY))
+    assert r["open"] == {"count": 2, "amount": 70000.0}
+    assert r["late"]["count"] == 2 and r["paid_pct"] == 30
+    assert [a["label"] for a in r["ages"]] == ["0–4 days", "5–7 days", "8–10 days", "11+ days"]
+    assert sum(a["count"] for a in r["ages"]) == r["open"]["count"]
+    assert r["worst"][0]["client"] == "Past limit" and {x["name"] for x in r["split"]} == {"Kiran", "Lokesh"}

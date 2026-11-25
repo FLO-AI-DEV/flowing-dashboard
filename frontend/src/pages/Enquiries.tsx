@@ -1,7 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useDashboard } from "../api/hooks";
-import type { CauseData, EnquiriesData } from "../api/types";
+import type { CauseData, EnquiriesData, EnquiryCategories } from "../api/types";
 import { PERIODS } from "../components/DailyClose";
 import { DataTable } from "../components/DataTable";
 import { SendPanel, useNudgeWho } from "../components/SendPanel";
@@ -9,6 +9,8 @@ import { Empty, KpiStrip, Panel } from "../components/ui";
 import { PageHead, PageState } from "./common";
 
 const STATUSES = ["Pending", "In process", "Not marked yet"];
+
+const VIEW: Record<string, string> = { today: "v-today", open: "all", old: "v-old", notpicked: "v-notpicked" };
 
 function Rows({ k }: { k: string }) {
   const [range, setRange] = useState("");
@@ -19,7 +21,7 @@ function Rows({ k }: { k: string }) {
   const names = who.data?.enabled ? who.data.who["enquiry"] ?? [] : [];
   return (
     <>
-      {names.length > 0 && <SendPanel cause="enquiry" group={k} noun="enquiry" names={names} testMode={!!who.data?.test_mode} startScope={range || "older"} />}
+      {names.length > 0 && !k.startsWith("v-") && <SendPanel cause="enquiry" group={k} noun="enquiry" names={names} testMode={!!who.data?.test_mode} startScope={range || "older"} />}
       <div className="cause-periods" role="group" aria-label="Show enquiries from">
         {PERIODS.map(([n, label]) => (
           <button key={n} type="button" className={`fbtn${range === n ? " is-set" : ""}`} aria-pressed={range === n} onClick={() => setRange(range === n ? "" : n)}>
@@ -49,16 +51,62 @@ function Rows({ k }: { k: string }) {
   );
 }
 
+/** The category column for each sheet tab (the team's own choice where filled, a best guess elsewhere), to paste into
+ *  the sheet by someone who can edit it. Copies one value per line, which Google Sheets spreads down the rows. */
+function CategoryExport() {
+  const [on, setOn] = useState(false);
+  const [done, setDone] = useState<string | null>(null);
+  const q = useDashboard<EnquiryCategories>("/enquiries/categories", {}, on);
+  const copy = async (label: string, values: string[]) => {
+    try {
+      await navigator.clipboard.writeText(values.join("\n"));
+      setDone(label);
+    } catch {
+      setDone(null);
+    }
+  };
+  return (
+    <div className="wrong-note">
+      {!on ? (
+        <button type="button" className="fbtn" onClick={() => setOn(true)}>
+          <span className="k">Get the category column to paste into the sheet</span>
+        </button>
+      ) : !q.data ? (
+        "Preparing…"
+      ) : (
+        <>
+          {q.data.tabs.map((t) => (
+            <button key={t.tab} type="button" className="fbtn" onClick={() => copy(t.label, t.values)}>
+              <span className="k">Copy {t.label}: {t.values.length} rows</span>
+            </button>
+          ))}
+          <p>
+            Paste each one into that tab's CATEGORY column, starting at the row shown: {q.data.tabs.map((t) => `${t.label} ${t.column ?? "?"}${t.first_row}`).join(" · ")}.
+            Categories the team already chose are kept.
+          </p>
+          {done && <p className="send-ok">{done} copied.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Enquiries() {
   const q = useDashboard<EnquiriesData>("/enquiries", {});
   const [open, setOpen] = useState<string | null>(null);
+  const [pick, setPick] = useState<string>("");
   return (
     <div className="page">
       <PageState q={q}>
         {(d) => (
           <>
             <PageHead title="Enquiries" lede="What customers asked about, and what is still open. Shown exactly as the customer-care team records it." meta={d.meta} />
-            <KpiStrip kpis={d.kpis} cols={3} />
+            <KpiStrip kpis={d.kpis} cols={3} onPick={(id) => setPick(pick === id ? "" : id)} picked={pick} />
+            {pick && VIEW[pick] && (
+              <Panel title={d.kpis.find((k) => k.id === pick)?.label ?? ""} sub="Click the same box again to close this list.">
+                <Rows key={pick} k={VIEW[pick]} />
+              </Panel>
+            )}
             <Panel title="Today" sub="Enquiries received today, by the status written in the sheet">
               <p className="wrong-note">
                 {d.today.received === 0
@@ -69,6 +117,12 @@ export default function Enquiries() {
                 Open by source: {d.by_source.map((s) => `${s.source} ${s.open} of ${s.total}`).join(" · ")}
               </p>
             </Panel>
+            {d.auto_categorised > 0 && (
+              <p className="wrong-note">
+                {d.auto_categorised} open enquiries have no category in the sheet yet, so the dashboard has guessed one from what was typed. A category the team picks always wins.
+              </p>
+            )}
+            <CategoryExport />
             <Panel title="What is still open" sub="Grouped by what the enquiry is about. Tap a group to see every enquiry.">
               {!d.causes.length ? (
                 <Empty title="Nothing is open">Every enquiry is marked Solved.</Empty>

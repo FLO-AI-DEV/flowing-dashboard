@@ -72,6 +72,14 @@ class GoogleSheetSource:
         data = self._get(f"{API}/{sheet_id}/values/{quote(a1_tab(tab), safe='')}", params)
         return data.get("values", [])
 
+    def get_range(self, sheet_id: str, tab: str, a1: str, formatted: bool = False) -> list[list]:
+        """One part of a tab (e.g. "A5:V900"). Used to read only the rows of a time window from a very long tab."""
+        params = {} if formatted else {"valueRenderOption": "UNFORMATTED_VALUE",
+                                       "dateTimeRenderOption": "SERIAL_NUMBER"}
+        rng = f"{a1_tab(tab)}!{a1}"
+        data = self._get(f"{API}/{sheet_id}/values/{quote(rng, safe='')}", params)
+        return data.get("values", [])
+
     def get_formulas(self, sheet_id: str, tab: str, col_letter: str) -> list[list]:
         rng = f"{a1_tab(tab)}!{col_letter}:{col_letter}"
         data = self._get(f"{API}/{sheet_id}/values/{quote(rng, safe='')}", {"valueRenderOption": "FORMULA"})

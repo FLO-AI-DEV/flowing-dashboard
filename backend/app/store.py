@@ -15,8 +15,10 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+import pandas as pd
+
 from .config import SHEET_REGISTRY, Settings
-from .core import today_ist
+from .core import parse_dates, today_ist
 from .dashboards import orders as ords
 from .dashboards import enquiries as enqs
 from .dashboards import payments as pays
@@ -25,6 +27,20 @@ from .sources.google import SheetAccessError
 KINDS = ["orders", "payments"]
 REFRESH_AHEAD = 0.5          # a cached read older than half its life is re-read in the background
 OLD_TAB_TTL = 6 * 3600      # month tabs older than last month are re-read every 6 hours, not every minute
+
+
+# The PO log has ~12,000 rows (and keeps growing). The dashboard reads only the rows of the chosen time window:
+# column A (the order date, one cheap read) tells which rows are in the window, then only those rows are read.
+PO_WINDOWS = {"30d": ("Last 30 days", 30), "60d": ("Last 60 days", 60), "90d": ("Last 90 days", 90),
+              "fy": ("This financial year", None)}
+DEFAULT_PO_WINDOW = "60d"
+PO_LAST_COL = "V"            # A..T is the form; two spare columns
+
+
+def po_window_start(window: str, today=None) -> pd.Timestamp:
+    label, days = PO_WINDOWS.get(window, PO_WINDOWS[DEFAULT_PO_WINDOW])
+    today = pd.Timestamp(today) if today is not None else today_ist()
+    return pays.FY_START if days is None else max(today.normalize() - pd.Timedelta(days=days), pays.FY_START)
 
 
 def _now() -> float:
@@ -141,6 +157,11 @@ class DataStore:
         return self.raw.get(("grid", sheet_id, tab, formatted), ttl or self.settings.live_ttl,
                             lambda: self.source.get_values(sheet_id, tab, formatted), versioned=True)
 
+    def part(self, sheet_id, tab, a1, ttl=None) -> Entry:
+        """One A1 range of a tab (cached like a grid)."""
+        return self.raw.get(("part", sheet_id, tab, a1), ttl or self.settings.live_ttl,
+                            lambda: self.source.get_range(sheet_id, tab, a1), versioned=True)
+
     def formulas(self, sheet_id, tab, col_letter) -> Entry:
         def load():
             try:
@@ -200,7 +221,74 @@ class DataStore:
             return pays.parse_payments(entries[0].value, tab=tabs[0])
         raise KeyError(kind)
 
+    def payments_dataset(self, window: str = DEFAULT_PO_WINDOW) -> Dataset:
+        """The PO log, but only the rows of `window` (see PO_WINDOWS). Rows are in time order, so the first row of the
+        window is found from column A alone; the rest of the log is never downloaded."""
+        window = window if window in PO_WINDOWS else DEFAULT_PO_WINDOW
+        sid = SHEET_REGISTRY["payments"]["id"]
+        extra, runs, old_open = [], [], 0
+        try:
+            tab = self.source_tabs("payments")[0]
+            dates = self.part(sid, tab, "A:A")
+            head = self.part(sid, tab, f"A1:{PO_LAST_COL}1")
+            col = [r[0] if r else "" for r in dates.value]
+            last = max((i for i, v in enumerate(col) if str(v).strip()), default=0) + 1      # last row with a date
+            when = parse_dates(pd.Series(col[1:last]))
+            start = po_window_start(window)
+            hit = when.index[when >= start]
+            if len(hit):
+                first_row = max(2, int(hit[0]) + 2 - 25)         # row number of the first order in the window,
+            else:                                                 # a little earlier in case rows are not in order
+                first_row = last + 1
+            body = self.part(sid, tab, f"A{first_row}:{PO_LAST_COL}{last}") if first_row <= last else None
+            # Open POs older than the window: read the status column alone (cheap), then fetch just those rows.
+            fy_hit = when.index[when >= pays.FY_START]
+            fy_first = max(2, int(fy_hit[0]) + 2) if len(fy_hit) else first_row
+            if fy_first < first_row:
+                status_col = pays.status_column(head.value[0] if head.value else [])
+                if status_col:
+                    st = self.part(sid, tab, f"{status_col}{fy_first}:{status_col}{first_row - 1}")
+                    extra.append(st)
+                    opens = [fy_first + i for i in range(first_row - fy_first)
+                             if str(col[fy_first + i - 1] if fy_first + i - 1 < len(col) else "").strip()
+                             and not pays.is_closed_status(st.value[i][0] if i < len(st.value) and st.value[i] else "")]
+                    old_open = len(opens)
+                    for a, b in pays.row_runs(opens):
+                        e = self.part(sid, tab, f"A{a}:{PO_LAST_COL}{b}")
+                        extra.append(e)
+                        runs.append(e)
+        except SheetAccessError as e:
+            return Dataset("payments", None, None, "", error=str(e))
+        except Exception as e:
+            return Dataset("payments", None, None, "", error=f"{type(e).__name__}: {e}")
+        entries = [dates, head] + extra + ([body] if body is not None else [])
+        grid = [list(head.value[0]) if head.value else []]
+        for e in runs:                                  # older open POs first, then the window (keeps sheet order)
+            grid += [list(r) for r in e.value]
+        grid += [list(r) for r in body.value] if body is not None else []
+        version = _digest([e.version for e in entries] + [window, str(today_ist().date())])
+        stale_err = next((e.error for e in entries if e.error), None)
+        fetched = min(e.fetched_at for e in entries)
+        key = ("payments", window)
+        with self._parsed_lock:
+            cached = self._parsed.get(key)
+        if cached and cached[0] == version:
+            data = cached[1]
+        else:
+            try:
+                data = pays.parse_payments(grid, tab=tab)
+            except SheetAccessError as e:
+                return Dataset("payments", None, fetched, version, error=str(e), tabs=[tab])
+            data["window"] = {"key": window, "label": PO_WINDOWS[window][0], "start": start.strftime("%d %b %Y"),
+                              "rows": max(0, last - first_row + 1) if body is not None else 0, "log_rows": last - 1,
+                              "older_open": old_open}
+            with self._parsed_lock:
+                self._parsed[key] = (version, data)
+        return Dataset("payments", data, fetched, version, error=stale_err, stale=bool(stale_err), tabs=[tab])
+
     def dataset(self, kind) -> Dataset:
+        if kind == "payments":
+            return self.payments_dataset(DEFAULT_PO_WINDOW)
         try:
             tabs, entries = self._entries(kind)
         except SheetAccessError as e:

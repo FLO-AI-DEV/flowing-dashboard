@@ -2,7 +2,7 @@ import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useDashboard, useStatus } from "../api/hooks";
-import type { Action, EnquiriesData, HomeData, PaymentsData } from "../api/types";
+import type { Action, EnquiriesData, HomeData, PoOverview } from "../api/types";
 import { fmtKpi } from "../lib/format";
 import { DataFlow, type FlowOut } from "../components/DataFlow";
 import { Notices, Panel } from "../components/ui";
@@ -12,7 +12,7 @@ import { PageHead, PageState } from "./common";
 type Stat = { label: string; value: string; hint?: string };
 
 /** One card per sheet: a headline status, three numbers, and a link to its page. New sheets add one card. */
-function SheetCard({ title, dept, to, tone, line, stats }: { title: string; dept: string; to: string; tone: "good" | "warn" | "bad"; line: string; stats: Stat[] }) {
+function SheetCard({ title, dept, to, tone, line, stats, scroll }: { title: string; dept: string; to: string; tone: "good" | "warn" | "bad"; line: string; stats: Stat[]; scroll?: boolean }) {
   return (
     <Link to={to} className={`sheet-card ${tone}`}>
       <div className="sc-top">
@@ -24,11 +24,12 @@ function SheetCard({ title, dept, to, tone, line, stats }: { title: string; dept
         <span className="dot" aria-hidden="true" />
         {line}
       </div>
-      <dl className="sc-stats">
+      <dl className={`sc-stats${scroll ? " scroll" : ""}`}>
         {stats.map((x) => (
           <div key={x.label}>
             <dt>{x.label}</dt>
             <dd className="num">{x.value}</dd>
+            {x.hint && <dd className="sc-hint">{x.hint}</dd>}
           </div>
         ))}
       </dl>
@@ -74,7 +75,7 @@ function ActionList({ items }: { items: Action[] }) {
 
 export default function Home() {
   const q = useDashboard<HomeData>("/home", {});
-  const pay = useDashboard<PaymentsData>("/payments", {});
+  const pay = useDashboard<PoOverview>("/po", {});
   const enq = useDashboard<EnquiriesData>("/enquiries", {});
   const status = useStatus();
   const [now, setNow] = useState(Date.now());
@@ -90,7 +91,7 @@ export default function Home() {
           const orderTone = c.backlog > 0 || (c.after_cutoff && c.pending > 0) ? "bad" : c.pending > 0 ? "warn" : "good";
           const late = d.kpis.find((k) => k.id === "late");
           const pk = (id: string) => pay.data?.kpis.find((k) => k.id === id);
-          const stale = Number(pk("stale")?.value ?? 0);
+          const late7 = Number(pk("late")?.value ?? 0);
           const ek = (id: string) => enq.data?.kpis.find((k) => k.id === id);
           const notPicked = Number(ek("notpicked")?.value ?? 0);
           return (
@@ -113,14 +114,17 @@ export default function Home() {
                 {pay.data && (
                   <SheetCard
                     dept="CRM"
-                    title="Payments"
+                    title="PO follow-up"
                     to="/payments"
-                    tone={stale > 0 ? "bad" : "good"}
-                    line={stale > 0 ? `${stale} not followed up for 2+ days` : "All followed up"}
+                    tone={late7 > 0 ? "bad" : Number(pk("soon")?.value ?? 0) > 0 ? "warn" : "good"}
+                    line={late7 > 0 ? `${late7} POs overdue for payment` : "No PO is overdue"}
+                    scroll
                     stats={[
-                      { label: "Pending", value: kv(pk("pending") as never) },
-                      { label: "Not followed up", value: kv(pk("stale") as never) },
-                      { label: "Collected this month", value: kv(pk("collected") as never) },
+                      { label: "Open POs", value: kv(pk("open") as never), hint: pk("open")?.hint },
+                      { label: "Due in 7 days", value: kv(pk("soon") as never), hint: pk("soon")?.hint },
+                      { label: "Overdue", value: kv(pk("late") as never), hint: pk("late")?.hint },
+                      { label: "Past 10-day limit", value: kv(pk("past") as never), hint: pk("past")?.hint },
+                      { label: "Paid today", value: kv(pk("paid_today") as never), hint: pk("paid_today")?.hint },
                     ]}
                   />
                 )}

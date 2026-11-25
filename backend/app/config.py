@@ -33,8 +33,12 @@ SHEET_REGISTRY: dict[str, dict] = {
     },
     "payments": {
         "name": "Payment follow-up",
-        "id": "1YtzUTartI0f1gDWwLFNDKsbwyYLO1cHeEhCL0ZaYQnE",   # CRM "New po sheet" (Kiran, Suryansh, Lokesh)
-        "tab": "Form responses 1",
+        # CRM "New po sheet" (owner deepak@flowingindia.com, view-only for us) has ~12,000 rows. It is read through its own
+        # mirror, "Flo-Wing PO Mirror" (owned by ai@floindia.com): tab PO LOG = IMPORTRANGE of 'Form responses 1'!A1:T20000
+        # of the real sheet 1YtzUTartI0f1gDWwLFNDKsbwyYLO1cHeEhCL0ZaYQnE. Only the rows of the chosen time window are read.
+        "id": "1XaVX7YA_7mYThyJctaXNguwWgaD-dRUgRi5dgeviT8Y",
+        "source_id": "1YtzUTartI0f1gDWwLFNDKsbwyYLO1cHeEhCL0ZaYQnE",
+        "tab": "PO LOG",
     },
 }
 

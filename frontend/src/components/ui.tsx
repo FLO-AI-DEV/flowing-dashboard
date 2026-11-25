@@ -73,7 +73,7 @@ function AnimatedValue({ kpi }: { kpi: Kpi }) {
   return <span ref={ref}>{shown.value}</span>;
 }
 
-export function KpiStrip({ kpis, cols, lead }: { kpis: Kpi[]; cols?: number; lead?: string[] }) {
+export function KpiStrip({ kpis, cols, lead, onPick, picked }: { kpis: Kpi[]; cols?: number; lead?: string[]; onPick?: (id: string) => void; picked?: string }) {
   const n = cols ?? Math.min(kpis.length, kpis.length % 4 === 0 || kpis.length > 6 ? 4 : kpis.length === 5 ? 5 : 3);
   return (
     <div className="kpis" style={{ ["--cols" as string]: n }} data-reveal>
@@ -82,7 +82,11 @@ export function KpiStrip({ kpis, cols, lead }: { kpis: Kpi[]; cols?: number; lea
         const unit = f.unit || k.unit;
         const isText = k.format === "text";
         return (
-          <div className={`kpi${k.tone === "alert" && typeof k.value === "number" && k.value > 0 ? " is-alert" : ""}${lead?.includes(k.id) ? " lead" : ""}`} key={k.id}>
+          <div
+            className={`kpi${k.tone === "alert" && typeof k.value === "number" && k.value > 0 ? " is-alert" : ""}${lead?.includes(k.id) ? " lead" : ""}${onPick ? " is-click" : ""}${picked === k.id ? " is-picked" : ""}`}
+            key={k.id}
+            {...(onPick ? { role: "button", tabIndex: 0, "aria-pressed": picked === k.id, onClick: () => onPick(k.id), onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(k.id); } } } : {})}
+          >
             <div className="kpi-label" title={k.hint}>
               {k.label}
               {k.hint && k.hint.length > 38 && <Info aria-label={k.hint} />}

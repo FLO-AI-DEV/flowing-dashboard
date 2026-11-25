@@ -234,5 +234,57 @@ export interface EnquiriesData extends Envelope {
   causes: EnquiryCause[];
   by_source: { source: string; open: number; total: number }[];
   total_open: number;
+  auto_categorised: number;
   notices: Notice[];
+}
+export interface EnquiryCategories extends Envelope {
+  tabs: { label: string; tab: string; first_row: number; column: string | null; values: string[] }[];
+}
+
+export interface PoBucket { key: string; label: string; count: number; amount: number }
+export interface PoPersonStat {
+  name: string; pos: number; open: number; on_track: number; open_amt: number; due_soon: number; overdue: number; past_limit: number;
+  past_limit_amt: number; not_sent: number; paid: number; paid_amt: number; paid_pct: number; cancelled: number;
+  cancelled_amt: number; days_to_pay: number | null; todo: number; done_today: number; paid_today_amt: number;
+  never: number; fix: number; stale: number;
+}
+export interface PoOverview extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  buckets: PoBucket[];
+  callers: TableData;
+  sales: TableData;
+  people: { crm: PoPersonStat[]; sp: PoPersonStat[] };
+  window: { key: string; label: string; start: string; rows: number; log_rows: number; older_open: number };
+  period: string;
+  bucket: string;
+  periods: { key: string; label: string; count: number; amount: number }[];
+  windows: { key: string; label: string }[];
+  rules: { due_days: number; limit_days: number };
+  notices: Notice[];
+}
+export interface PoPerson extends Envelope {
+  role: "crm" | "sp";
+  role_label: string;
+  name: string;
+  kpis: Kpi[];
+  stats: PoPersonStat;
+  table: TableData & { states: string[]; done: boolean[] };
+  count: number;
+  todo: number;
+}
+
+export interface PoReport extends Envelope {
+  role: "crm" | "sp"; role_label: string; name: string;
+  open: { count: number; amount: number }; late: { count: number; amount: number };
+  paid_pct: number; paid: { count: number; amount: number }; cancelled: { count: number; amount: number };
+  days_to_pay: number | null;
+  recent: { sent: number; sent_amount: number; paid: number; paid_amount: number; paid_pct: number };
+  ages: { key: string; label: string; count: number; amount: number }[];
+  followup: { not_followed_up: number; never_called: number; status_not_updated: number; avg_calls: number; on_hold: number };
+  worst: { client: string; so: string; amount: number; day: number; calls: number; note: string }[];
+  clients: { client: string; open: number; amount: number; oldest: number }[];
+  split: { name: string; open: number; amount: number; stale: number; late: number }[];
+  split_label: string;
+  summary: string;
 }

@@ -12,7 +12,7 @@ export const NAV = [
   { group: "CRM", items: [
     { to: "/orders", label: "Orders", icon: ClipboardList },
     { to: "/enquiries", label: "Enquiries", icon: MessageCircleQuestion },
-    { to: "/payments", label: "Payments", icon: IndianRupee },
+    { to: "/payments", label: "PO follow-up", icon: IndianRupee },
     { to: "/team", label: "Team", icon: Users },
     { to: "/clients", label: "Clients", icon: Building2 },
   ] },

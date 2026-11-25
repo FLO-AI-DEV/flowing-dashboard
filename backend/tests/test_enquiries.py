@@ -64,6 +64,40 @@ def test_team_columns_are_read_and_category_wins_over_typed_text():
     assert not d["issues"]
     assert list(df["assigned"]) == ["Anjali", "", ""] and list(df["bill_no"])[0] == "3504/2627"
     assert df["solved_on_dt"].iloc[0] == pd.Timestamp("2026-10-13")
-    assert list(df["group_label"]) == ["Parcel tracking / LR / GR", "Parcel tracking / LR / GR", "Gr check"]
+    assert list(df["group_label"]) == ["Parcel tracking / LR / GR"] * 3     # the third one is filled by the guess
+    assert list(df["auto_category"]) == [False, False, True]
     h = e.home_dashboard(d, TODAY)
-    assert {c["label"]: c["open"] for c in h["causes"]} == {"Parcel tracking / LR / GR": 1, "Gr check": 1}
+    assert {c["label"]: c["open"] for c in h["causes"]} == {"Parcel tracking / LR / GR": 2}
+    assert h["auto_categorised"] == 1
+
+
+def test_auto_category_examples_from_the_real_sheet():
+    c = e.CATEGORIES
+    for text, want in [("Parcel  track ", 0), ("need lr", 0), ("GR CHECK", 0), ("PARCEL NOT DELIVER ", 1), ("article damage", 2),
+                       ("1 PCS SHORT RECEIVE", 3), ("RATE DIFF", 4), ("need invoice", 5), ("asking cn", 5), ("Refund", 6),
+                       ("stock check", 7), ("gst no update", 8), ("anjali di", 9)]:
+        assert e.auto_category(text) == c[want], text
+    assert e.auto_category("") == "" and e.auto_category("", "need lr") == c[0]
+
+
+def test_suggest_column_keeps_team_choices_and_fills_gaps():
+    head = ["DATE & TIME", "CLIENT NAME", "Number", "ENQUIRY ABOUT", "REMARK", "SOLVE/ PENDING", "FOLLOW UP", "Client reply", "category"]
+    grid = [head,
+            ["12/10/2026 10:00:00", "A", "1", "parcel track", "", "Solved", "", "", "Other"],
+            ["12/10/2026 10:05:00", "B", "2", "Refund", "", "Pending", "", "", ""],
+            [], 
+            ["12/10/2026 10:07:00", "C", "3", "", "", "", "", "", ""]]
+    r = e.suggest_column(grid, "t")
+    assert r["column"] == "I" and r["first_row"] == 2
+    assert r["values"] == ["Other", "Payment / ledger / refund"]    # own choice kept, gap filled, trailing blanks dropped
+
+
+
+def test_tile_lists_match_the_tile_numbers():
+    d = _data()
+    h = e.home_dashboard(d, TODAY)
+    n = {k["id"]: k["value"] for k in h["kpis"]}
+    assert e.cause_dashboard(d, "v-today", TODAY)["count"] == n["today"]
+    assert e.cause_dashboard(d, "all", TODAY)["count"] == n["open"]
+    assert e.cause_dashboard(d, "v-old", TODAY)["count"] == n["old"]
+    assert e.cause_dashboard(d, "v-notpicked", TODAY)["count"] == n["notpicked"]

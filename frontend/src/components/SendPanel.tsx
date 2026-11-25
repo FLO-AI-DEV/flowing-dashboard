@@ -21,12 +21,13 @@ export function useNudgeWho() {
 
 /** "Send to Mona": pick which orders, see the exact message, send it. The message goes out through Iris from the
  *  company number; the order sheets are never touched. */
-export function SendPanel({ cause, names, testMode, startScope, group, noun = "order" }: { cause: string; names: string[]; testMode: boolean; startScope: string; group?: string; noun?: string }) {
+export function SendPanel({ cause, names, testMode, startScope, group, noun = "order", scopes }: { cause: string; names: string[]; testMode: boolean; startScope: string; group?: string; noun?: string; scopes?: [string, string][] }) {
   const [open, setOpen] = useState(false);
   const [scope, setScope] = useState(startScope || "today");
   const [minDays, setMinDays] = useState(7);
   const body = { cause, scope, min_days: scope === "custom" ? minDays : 0, ...(group ? { group } : {}) };
   const plural = noun === "enquiry" ? "enquiries" : `${noun}s`;
+  const choices = scopes ?? SCOPES;
 
   const preview = useQuery<NudgePreview, Error>({
     queryKey: ["/nudge/preview", body],
@@ -58,7 +59,7 @@ export function SendPanel({ cause, names, testMode, startScope, group, noun = "o
         <button type="button" className="send-close" onClick={() => setOpen(false)} aria-label="Close">×</button>
       </div>
       <div className="send-scopes" role="group" aria-label={`Which ${plural}`}>
-        {SCOPES.map(([k, label]) => (
+        {choices.map(([k, label]) => (
           <button key={k} type="button" className={`fbtn${scope === k ? " is-set" : ""}`} aria-pressed={scope === k} onClick={() => { send.reset(); setScope(k); }}>
             <span className="k">{label}</span>
           </button>
