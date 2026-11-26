@@ -413,8 +413,8 @@ def parse(question: str, vocab: Vocabulary, today_month: str | None) -> Query:
         q.intent = "where"
     elif TREND in q.toks:
         q.intent = "trend"
-    elif re.search(r"\b(vendor|vender|supplier|party|category|item|product|department|city|agency)s?[- ]?wise\b|"
-                   r"\b(by|per|har) (vendor|vender|supplier|party|category|item|product|department|city|agency)s?\b",
+    elif re.search(r"\b(vendor|vender|supplier|party|category|item|product|department|city|agency|fabric)s?[- ]?wise\b|"
+                   r"\b(by|per|har) (vendor|vender|supplier|party|category|item|product|department|city|agency|fabric)s?\b",
                    t) and q.dims:
         q.intent = "rank"
         q.n = max(q.n, 10)

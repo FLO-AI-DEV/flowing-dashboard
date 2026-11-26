@@ -8,13 +8,11 @@ import { Wordmark } from "../Brand";
 import { LiveStatus } from "./LiveStatus";
 
 export const NAV = [
-  { group: "Operations", items: [
+  { group: "Merchandise", items: [
     { to: "/", label: "Overview", icon: LayoutDashboard },
     { to: "/today", label: "Today", icon: CalendarCheck },
     { to: "/orders", label: "Orders", icon: ClipboardList },
     { to: "/vendors", label: "Vendors", icon: Building2 },
-  ] },
-  { group: "Purchasing and accounts", items: [
     { to: "/order-to-vendors", label: "Order to vendors", icon: Truck },
     { to: "/dues", label: "Supplier dues", icon: IndianRupee },
     { to: "/enquiries", label: "Supplier enquiries", icon: MessageSquareText },

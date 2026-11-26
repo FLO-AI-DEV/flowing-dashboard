@@ -23,6 +23,7 @@ VENDORS = [("SHREE RAM TEXTILES (JAIPUR)", "Jaipur"), ("MAHAVIR CREATIONS (KOLKA
            ("KESAR ETHNIC (JAIPUR)", "Jaipur"), ("MOHINI DESIGNS (SURAT)", "Surat")]
 CATS = ["SKD", "CO-ORD SET", "KURTA", "KURTA PANT", "DRESS"]
 DEPTS = ["CLASSIC", "PREMIUM", "BASIC"]
+FABRICS = ["COTTON", "WOOLEN", "VISCOSE-SILK", "CREPE", "MUSLIN", "", "LINEN", "SILLY COTTON"]   # picked by line number, so the random numbers above are unchanged
 MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
@@ -56,7 +57,7 @@ def _po_master(today: date):
             rows.append([n, serial(od), f"FWPO-{po:05d}/2627", serial(due), serial(rd) if rd else "", delay, v, city,
                          f"{rnd.choice(CATS)} STITCHED", rnd.choice(CATS), f"D-{rnd.randint(100, 999)}",
                          f"FW{rnd.randint(100, 599)}-{rnd.randint(100000, 999999)}", qty, rate, "", "", qty * rate, rq,
-                         rq * rate, qty - rq, (qty - rq) * rate, "", rnd.choice(DEPTS), "", "", n,
+                         rq * rate, qty - rq, (qty - rq) * rate, "", rnd.choice(DEPTS), FABRICS[n % len(FABRICS)], "", n,
                          f"{MON[od.month - 1]}{od.year}", f"{MON[due.month - 1]}{due.year}", ""])
     return rows
 

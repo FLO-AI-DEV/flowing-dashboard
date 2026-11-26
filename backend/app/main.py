@@ -170,10 +170,12 @@ Multi = Annotated[list[str], Query()]
 
 def extra_filters(period: Annotated[str, Query(max_length=20)] = "", date_from: Annotated[str, Query(max_length=10)] = "",
                   date_to: Annotated[str, Query(max_length=10)] = "", q: Annotated[str, Query(max_length=100)] = "",
-                  window: Multi = [], supplier_type: Multi = [], amount: Multi = []) -> dict:
+                  window: Multi = [], supplier_type: Multi = [], amount: Multi = [],
+                  date_by: Annotated[str, Query(max_length=20)] = "") -> dict:
     """Filters every page shares: date period, search, due / delivery window, supplier type, amount range."""
     return {"period": period.strip(), "date_from": date_from.strip(), "date_to": date_to.strip(), "q": q.strip(),
-            "window": _clean(window), "supplier_type": _clean(supplier_type), "amount": _clean(amount)}
+            "window": _clean(window), "supplier_type": _clean(supplier_type), "amount": _clean(amount),
+            "date_by": date_by.strip()}
 
 
 Extra = Annotated[dict, Depends(extra_filters)]
@@ -225,23 +227,25 @@ def today(role: Annotated[str, Query(max_length=30)] = ""):  # noqa: F811 - rout
     return _envelope(tdy.today_dashboard(sources, now_ist(), role.strip()), *ds.values())
 
 
-ORDER_KEYS = ("month", "vendor", "department", "category", "city", "timing")
+ORDER_KEYS = ("month", "delivery_month", "vendor", "department", "category", "city", "fabric", "timing")
 
 
 @app.get("/api/orders", dependencies=[Depends(require_auth)])
-def orders(extra: Extra, month: Multi = [], vendor: Multi = [], department: Multi = [], category: Multi = [],
-           city: Multi = [], timing: Multi = []):
+def orders(extra: Extra, month: Multi = [], delivery_month: Multi = [], vendor: Multi = [], department: Multi = [],
+           category: Multi = [], city: Multi = [], fabric: Multi = [], timing: Multi = []):
     ds = get_store().dataset("order_status")
-    f = {**extra, "month": _clean(month), "vendor": _clean(vendor), "department": _clean(department),
-         "category": _clean(category), "city": _clean(city), "timing": _clean(timing)}
+    f = {**extra, "month": _clean(month), "delivery_month": _clean(delivery_month), "vendor": _clean(vendor),
+         "department": _clean(department), "category": _clean(category), "city": _clean(city),
+         "fabric": _clean(fabric), "timing": _clean(timing)}
     return _envelope(_with_period(ords.orders_dashboard(_need(ds), f), f), ds)
 
 
 @app.get("/api/vendors", dependencies=[Depends(require_auth)])
-def vendors(extra: Extra, month: Multi = [], department: Multi = [], category: Multi = [], city: Multi = []):
+def vendors(extra: Extra, month: Multi = [], delivery_month: Multi = [], department: Multi = [],
+            category: Multi = [], city: Multi = [], fabric: Multi = []):
     ds = get_store().dataset("order_status")
-    f = {**extra, "month": _clean(month), "department": _clean(department), "category": _clean(category),
-         "city": _clean(city)}
+    f = {**extra, "month": _clean(month), "delivery_month": _clean(delivery_month), "department": _clean(department),
+         "category": _clean(category), "city": _clean(city), "fabric": _clean(fabric)}
     return _envelope(_with_period(ords.vendors_dashboard(_need(ds), f), f), ds)
 
 

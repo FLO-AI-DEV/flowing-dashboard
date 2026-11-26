@@ -12,7 +12,7 @@ import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { fmtInt, inrShort, titleCase } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["month", "vendor", "department", "category", "city", "timing", ...EXTRA_KEYS];
+const KEYS = ["month", "delivery_month", "vendor", "department", "category", "city", "fabric", "timing", "date_by", ...EXTRA_KEYS];
 
 export default function Orders() {
   const f = useFilters(KEYS);
@@ -46,13 +46,16 @@ export default function Orders() {
                 }
               />
               <FilterBar active={f.active} onReset={f.reset}>
-                <MonthFilter options={d.options.month} value={f.values.month} onChange={(v) => f.set("month", v)} />
+                <MonthFilter label="Order month" options={d.options.month} value={f.values.month} onChange={(v) => f.set("month", v)} />
+                {d.options.delivery_month && <MonthFilter label="Delivery month" options={d.options.delivery_month} value={f.values.delivery_month} onChange={(v) => f.set("delivery_month", v)} />}
                 <MultiSelect label="Vendor" options={d.options.vendor} value={f.values.vendor} onChange={(v) => f.set("vendor", v)} />
                 <MultiSelect label="Department" options={d.options.department} value={f.values.department} onChange={(v) => f.set("department", v)} />
                 <MultiSelect label="Category" options={d.options.category} value={f.values.category} onChange={(v) => f.set("category", v)} />
                 <MultiSelect label="City" options={d.options.city} value={f.values.city} onChange={(v) => f.set("city", v)} />
+                {d.options.fabric && <MultiSelect label="Fabric" options={d.options.fabric} value={f.values.fabric} onChange={(v) => f.set("fabric", v)} pretty={(x) => x} />}
                 <MultiSelect label="Delivery" options={d.options.timing} value={f.values.timing} onChange={(v) => f.set("timing", v)} pretty={(x) => x} />
-                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf="PO date" windowLabel="Due window" search="Search PO, design, vendor…" />
+                {d.options.date_by && <MultiSelect label="Date by" options={d.options.date_by} value={f.values.date_by} onChange={(v) => f.set("date_by", v)} single allLabel="Order date" pretty={(x) => x} />}
+                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf={f.values.date_by?.[0] === "Delivery date" ? "delivery date" : "order date"} windowLabel="Due window" search="Search PO, design, vendor…" />
               </FilterBar>
               <Notices items={d.notices} />
               {d.empty ? (
@@ -107,6 +110,36 @@ export default function Orders() {
                         </Panel>
                       </div>
                     </div>
+                  </Section>
+
+                  <Section title="Fabric" sub="Cotton, silk, viscose and so on · pick Fabric in the filters to see only that fabric">
+                    <div className="grid" style={{ marginBottom: 16 }}>
+                      <div className="span-7">
+                        <Panel title="Ordered, received and pending by fabric" sub="₹" right={<Legend items={d.charts.fabrics.series.map((x, i) => ({ name: x.name, color: colorFor(x.name, i) }))} />}>
+                          <Bars data={d.charts.fabrics} names money label="Ordered, received and pending value by fabric" height={280} />
+                        </Panel>
+                      </div>
+                      <div className="span-5">
+                        <Panel title="PO lines by fabric" sub="Lines">
+                          <BarList items={d.charts.fabric_lines} unit="lines" label="PO lines per fabric" max={12} share />
+                        </Panel>
+                      </div>
+                    </div>
+                    <Panel title="By fabric" sub="A line is counted under every fabric family its Fabric text names" flush>
+                      <DataTable table={d.tables.fabrics} name="orders_fabrics" maxRows={15} titleCaseFirst={false} />
+                    </Panel>
+                  </Section>
+
+                  <Section title={f.values.date_by?.[0] === "Delivery date" ? "Status by delivery month" : "Status by order month"} sub="How many lines are on time, delayed, overdue or still open · change 'Date by' in the filters to switch between order date and delivery date">
+                    <Panel flush>
+                      <DataTable table={d.tables.status_by_date} name="orders_status_by_date" maxRows={14} titleCaseFirst={false} />
+                    </Panel>
+                  </Section>
+
+                  <Section title="Every PO line" sub="With order date, delivery date and received date · newest order first · use the filters above or the search to narrow it">
+                    <Panel flush>
+                      <DataTable table={d.tables.lines} name="orders_po_lines" maxRows={25} titleCaseFirst={false} />
+                    </Panel>
                   </Section>
 
                   <Section title="Category, department and city" sub="Where the value sits">

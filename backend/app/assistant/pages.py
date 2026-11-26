@@ -22,8 +22,10 @@ PAGES: dict[str, Page] = {p.key: p for p in [
     Page("orders", "Orders", "/orders", ("orders page", "order page", "order status", "po master"),
          "Every PO line from the Order Status sheet (PO Master tab): ordered, received and pending value and pcs, "
          "overdue lines (delivery date passed, pieces still pending), on-time delivery and delays, by month, vendor, "
-         "category, department and city.",
-         {"month": "month", "vendor": "vendor", "department": "department", "category": "category", "city": "city"}, 1),
+         "category, department, city and fabric (cotton, silk, viscose ...). Every PO line is listed with its order "
+         "date, delivery date and received date. The filters can use the order date or the delivery date ('Date by').",
+         {"month": "month", "vendor": "vendor", "department": "department", "category": "category", "city": "city",
+          "fabric": "fabric"}, 1),
     Page("dues", "Supplier dues", "/dues", ("dues page", "dues", "payment page", "supplier dues", "payables"),
          "Supplier bills from the DUES PAYMENT SUPPLIERS sheet: total net payable, overdue amount, what falls due in "
          "the next 7 days, ageing, and dues per supplier with credit days, discount and agency. Pick the dues list "
@@ -53,17 +55,17 @@ PAGES: dict[str, Page] = {p.key: p for p in [
 
 # Option lists in the API -> entity type. Other option lists (timing, status...) are not used as names.
 OPTION_TYPES = {"vendor": "vendor", "supplier": "vendor", "category": "category", "department": "department",
-                "city": "city", "agency": "agency", "month": "month",
+                "city": "city", "agency": "agency", "month": "month", "fabric": "fabric",
                 "party": "party", "handler": "handler"}
 
 # First column of a table -> what each row is.
 ROW_TYPES = {"vendor": "vendor", "supplier": "vendor", "month": "month", "category": "category",
              "department": "department", "city": "city", "agency": "agency", "po no.": "po", "po no": "po",
-             "handled by": "handler"}
+             "handled by": "handler", "fabric": "fabric"}
 
 DIMENSION_WORDS = {"vendor": "vendor", "month": "month", "category": "category", "department": "department",
                    "city": "city", "agency": "agency", "po": "po",
-                   "handler": "handler"}
+                   "handler": "handler", "fabric": "fabric"}
 
 # Plural words that ask about every row of a kind ("on-time rate of vendors", "har vendor ka pending").
 DIMENSION_PLURALS = {"vendors": "vendor", "suppliers": "vendor", "parties": "vendor", "venders": "vendor",
@@ -76,17 +78,17 @@ QUALITY = {"vendor": "on-time rate"}
 
 TYPE_NAMES = {"vendor": "vendor", "category": "category", "department": "department", "city": "city",
               "agency": "agency", "month": "month", "po": "PO",
-              "handler": "person", "party": "supplier"}
+              "handler": "person", "party": "supplier", "fabric": "fabric"}
 PLURALS = {"category": "categories", "city": "cities", "agency": "agencies", "PO": "POs"}
 
 # The page that "owns" a kind of row, used when a ranking names no measure ("top vendor").
 HOME_PAGE = {"vendor": "vendors", "category": "orders", "department": "orders", "city": "orders", "month": "orders",
-             "agency": "dues"}
+             "agency": "dues", "fabric": "orders"}
 
 # Questions about how to use the screen. Each entry: trigger words -> answer.
 FEATURES = [
     ({"filter", "filters", "filtr"},
-     "Every page has filter buttons at the top (month, vendor, department and so on). Pick one or more values and "
+     "Every page has filter buttons at the top (month, vendor, department, fabric and so on). Pick one or more values and "
      "the numbers, charts and tables update straight away. Clear a filter to see everything again."),
     ({"download", "csv", "export", "excel"},
      "Tables have a **CSV** button under them; it saves exactly the rows you see with the current filters."),

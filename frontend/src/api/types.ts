@@ -120,9 +120,9 @@ export interface OrdersData extends Envelope {
   notices: Notice[];
   kpis: Kpi[];
   summary: { overdue_lines: number; pending_pcs: number; pending: number; overdue: number; vendors: number; oldest: { po: string; vendor: string; days: number } | null };
-  tables: { monthly: TableData; vendors: TableData; categories: TableData; departments: TableData; cities: TableData; overdue: TableData };
+  tables: { monthly: TableData; vendors: TableData; categories: TableData; departments: TableData; cities: TableData; fabrics: TableData; status_by_date: TableData; lines: TableData; overdue: TableData };
   overdue_total: number;
-  charts: { monthly: SeriesChart; receivable: SeriesChart; vendors: SeriesChart; categories: SeriesChart; timing: Slice[] };
+  charts: { monthly: SeriesChart; receivable: SeriesChart; vendors: SeriesChart; categories: SeriesChart; fabrics: SeriesChart; fabric_lines: { label: string; value: number }[]; timing: Slice[] };
 }
 
 export interface VendorsData extends Envelope {

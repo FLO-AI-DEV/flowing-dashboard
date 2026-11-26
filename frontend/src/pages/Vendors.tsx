@@ -11,7 +11,7 @@ import { EXTRA_KEYS, useFilters } from "../lib/filters";
 import { inrShort, titleCase } from "../lib/format";
 import { PageHead, PageState } from "./common";
 
-const KEYS = ["month", "department", "category", "city", ...EXTRA_KEYS];
+const KEYS = ["month", "delivery_month", "department", "category", "city", "fabric", "date_by", ...EXTRA_KEYS];
 
 export default function Vendors() {
   const f = useFilters(KEYS);
@@ -46,11 +46,14 @@ export default function Vendors() {
                 }
               />
               <FilterBar active={f.active} onReset={f.reset}>
-                <MonthFilter options={d.options.month} value={f.values.month} onChange={(v) => f.set("month", v)} />
+                <MonthFilter label="Order month" options={d.options.month} value={f.values.month} onChange={(v) => f.set("month", v)} />
+                {d.options.delivery_month && <MonthFilter label="Delivery month" options={d.options.delivery_month} value={f.values.delivery_month} onChange={(v) => f.set("delivery_month", v)} />}
                 <MultiSelect label="Department" options={d.options.department} value={f.values.department} onChange={(v) => f.set("department", v)} />
                 <MultiSelect label="Category" options={d.options.category} value={f.values.category} onChange={(v) => f.set("category", v)} />
                 <MultiSelect label="City" options={d.options.city} value={f.values.city} onChange={(v) => f.set("city", v)} />
-                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf="PO date" windowLabel="Due window" search="Search vendor, PO, design…" />
+                {d.options.fabric && <MultiSelect label="Fabric" options={d.options.fabric} value={f.values.fabric} onChange={(v) => f.set("fabric", v)} pretty={(x) => x} />}
+                {d.options.date_by && <MultiSelect label="Date by" options={d.options.date_by} value={f.values.date_by} onChange={(v) => f.set("date_by", v)} single allLabel="Order date" pretty={(x) => x} />}
+                <ExtraFilters f={f} options={d.options} periodLabel={d.period_label} dateOf={f.values.date_by?.[0] === "Delivery date" ? "delivery date" : "order date"} windowLabel="Due window" search="Search vendor, PO, design…" />
               </FilterBar>
               <Notices items={d.notices} />
               {d.empty ? (

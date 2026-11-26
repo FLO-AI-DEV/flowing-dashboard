@@ -18,7 +18,7 @@ import pandas as pd
 
 from ..core import (MONTH_NAME_BY_NUM, clean_delay_days, clean_text, fmt, month_label, month_sort_key, norm_key, num, parse_dates, safe_div_pct)
 from ..core import today_ist
-from ..tables import RATE_APPROVAL, kpi, notice, table
+from ..tables import RATE_APPROVAL, kpi, notice, table, with_total
 from . import extra as ex
 
 COLS = {
@@ -47,6 +47,37 @@ COLS = {
     "remark": ["REMARK", "REMARKS"],
 }
 NEEDED = ["vendor", "order_amt"]
+
+# Fabric families for the Fabric filter. A line belongs to every family whose keyword appears in its Fabric text, so
+# "VISCOSE-SILK" is found under both Viscose and Silk, and "SILLY COTTON" under Cotton. The sheet's own spellings
+# are tidied first ("VSICOSE" -> "VISCOSE", "CRAPE" -> "CREPE").
+FABRIC_FAMILIES = {
+    "Cotton": ("COTTON",), "Wool": ("WOOL", "WOOLEN", "WOOLLEN"), "Silk": ("SILK",), "Viscose": ("VISCOSE",),
+    "Crepe": ("CREPE",), "Chanderi": ("CHANDERI",), "Muslin": ("MUSLIN",), "Linen": ("LINEN",),
+    "Georgette": ("GEORGETTE", "GEOG"), "Chinon": ("CHINON",), "Banarasi": ("BANARASI",), "Tissue": ("TISSUE",),
+    "Rayon": ("RAYON",), "Satin": ("SATIN",), "Denim": ("DENIM",),
+}
+FABRIC_OTHER = "Other fabric"
+FABRIC_BLANK = "(Fabric not filled in)"
+_FABRIC_FIX = (("VSICOSE", "VISCOSE"), ("VSICOS", "VISCOS"), ("CRAPE", "CREPE"), ("MUL CHANDERI", "MUL-CHANDERI"),
+               ("GAJJI SILK", "GAJJI-SILK"))
+
+
+def tidy_fabric(s: pd.Series) -> pd.Series:
+    t = s.fillna("").astype(str).str.upper().str.replace(r"\s+", " ", regex=True).str.strip()
+    for a, b in _FABRIC_FIX:
+        t = t.str.replace(a, b, regex=False)
+    return t.where(~t.isin(["-", "--", "NA", "N/A"]), "")
+
+
+def fabric_tags(s: pd.Series) -> pd.Series:
+    """'|Silk|Viscose|' for each line (every family it belongs to), '|Other fabric|' or '|(Fabric not filled in)|'."""
+    def one(v: str) -> str:
+        if not v:
+            return f"|{FABRIC_BLANK}|"
+        hit = [k for k, words in FABRIC_FAMILIES.items() if any(w in v for w in words)]
+        return "|" + "|".join(hit or [FABRIC_OTHER]) + "|"
+    return s.map(one)
 TIMINGS = ["On Time", "Delayed", "Overdue (Pending)", "Open (Within Deadline)", "No Date", "Nil Order"]
 
 
@@ -112,6 +143,9 @@ def parse_orders(grid, today: pd.Timestamp):
     d = d[(d["po"] != "") | (d["vendor"] != "")].copy()
     for f in ("vendor", "category", "department", "city"):
         d[f] = d[f].replace("", "(BLANK)").str.upper()
+    d["fabric"] = tidy_fabric(d["fabric"])
+    d["fabric_tags"] = fabric_tags(d["fabric"])
+    d["fabric_group"] = d["fabric_tags"].str.strip("|").str.split("|").str[0]
 
     # month = PO date; fall back to the sheet's ORDER MONTH text
     m = month_label(d["po_date"])
@@ -197,7 +231,10 @@ def month_axis(d: pd.DataFrame, col="month") -> list[str]:
 def options(d: pd.DataFrame) -> dict:
     def vals(c):
         return sorted(v for v in d[c].unique() if v and v != "(BLANK)")
-    return {"month": month_axis(d), "vendor": vals("vendor"), "department": vals("department"),
+    present = {t for tags in d["fabric_tags"].unique() for t in tags.strip("|").split("|")}
+    fabrics = [k for k in FABRIC_FAMILIES if k in present] + [k for k in (FABRIC_OTHER, FABRIC_BLANK) if k in present]
+    return {"fabric": fabrics, "delivery_month": month_axis(d, "delivery_month"),
+            "date_by": DATE_BY, "month": month_axis(d), "vendor": vals("vendor"), "department": vals("department"),
             "category": vals("category"), "city": vals("city"), "timing": [t for t in TIMINGS if (d["timing"] == t).any()],
             "window": [w for w in ex.ORDER_WINDOWS if (d["window"] == w).any()],
             "supplier_type": ex.SUPPLIER_TYPES if ex.is_msme(d["vendor"]).any() else [],
@@ -207,16 +244,21 @@ def options(d: pd.DataFrame) -> dict:
 SEARCH_COLS = ["po", "vendor", "design", "supplier_design", "item", "category", "department", "city", "fabric", "remark"]
 
 
+DATE_BY = ["Order date", "Delivery date"]
+
+
 def apply_filters(d: pd.DataFrame, f: dict) -> pd.DataFrame:
     x = d
-    for key, col in (("month", "month"), ("vendor", "vendor"), ("department", "department"),
+    if f.get("fabric"):
+        x = x[x["fabric_tags"].map(lambda t: any(f"|{k}|" in t for k in f["fabric"]))]
+    for key, col in (("month", "month"), ("delivery_month", "delivery_month"), ("vendor", "vendor"), ("department", "department"),
                      ("category", "category"), ("city", "city"), ("timing", "timing"), ("window", "window"),
                      ("amount", "amount_band")):
         if f.get(key):
             x = x[x[col].isin(f[key])]
     rng = ex.period_range(f, today_ist())
     if rng:
-        x = x[ex.in_period(x["po_date"], rng)]
+        x = x[ex.in_period(x["delivery_date" if f.get("date_by") == "Delivery date" else "po_date"], rng)]
     if f.get("supplier_type"):
         x = x[ex.supplier_type(x["vendor"], f["supplier_type"])]
     if f.get("q"):
@@ -280,6 +322,30 @@ def orders_dashboard(d: pd.DataFrame, f: dict) -> dict:
     cat = group_table(x, "category", "Category", ["Lines", "Ordered", "Received", "Pending", "Pending Pcs", "RCVD %"])
     dep = group_table(x, "department", "Department", ["Lines", "Ordered", "Received", "Pending", "Pending Pcs", "RCVD %"])
     city = group_table(x, "city", "City", ["Lines", "Ordered", "Received", "Pending", "Overdue", "RCVD %"])
+    fab = group_table(x, "fabric_group", "Fabric", ["Lines", "Ordered", "Received", "Pending", "Pending Pcs", "RCVD %"])
+    fb = fab[fab["Fabric"] != "TOTAL"].sort_values("Pending", ascending=False) if not fab.empty else fab
+    by_delivery = f.get("date_by") == "Delivery date"
+    dcol, dlabel = ("delivery_month", "Delivery Month") if by_delivery else ("month", "Order Month")
+    sd = []
+    for k, g in x.groupby(dcol, sort=False):
+        tm_ = g["timing"].value_counts()
+        sd.append({dlabel: k, "Lines": int(len(g)), "POs": int(g.loc[g["po"] != "", "po"].nunique()),
+                   "On Time": int(tm_.get("On Time", 0)), "Delayed": int(tm_.get("Delayed", 0)),
+                   "Overdue Lines": int(tm_.get("Overdue (Pending)", 0)),
+                   "Open (Within Deadline)": int(tm_.get("Open (Within Deadline)", 0)),
+                   "No Date": int(tm_.get("No Date", 0)), "Pending": float(g["pending"].sum())})
+    sd_tbl = pd.DataFrame(sd)
+    if not sd_tbl.empty:
+        sd_tbl = sd_tbl.sort_values(dlabel, key=lambda c: c.map(lambda v: (1, ()) if v == "(NO DATE)" else (0, month_sort_key(v))))
+        sd_tbl = with_total(sd_tbl, dlabel)
+    lines = x.sort_values(["delivery_date" if by_delivery else "po_date", "po"], ascending=[False, True],
+                          na_position="last").head(3000)
+    lines_tbl = pd.DataFrame({
+        "PO No.": lines["po"], "Vendor": lines["vendor"], "Fabric": lines["fabric"].replace("", "-"),
+        "Category": lines["category"], "Design": np.where(lines["design"] != "", lines["design"], lines["item"]),
+        "Order Date": lines["po_date"], "Delivery Date": lines["delivery_date"], "Received Date": lines["received_date"],
+        "Order Qty": lines["order_qty"], "Pending Qty": lines["pending_qty"], "Pending": lines["pending"],
+        "Status": lines["timing"]})
     cb = cat[cat["Category"] != "TOTAL"].sort_values("Ordered", ascending=False) if not cat.empty else cat
     tm = x["timing"].value_counts()
 
@@ -314,6 +380,11 @@ def orders_dashboard(d: pd.DataFrame, f: dict) -> dict:
             "categories": table(cat, MONEY, key_col="Pending", rates={"RCVD %": RATE_APPROVAL}),
             "departments": table(dep, MONEY, key_col="Pending", rates={"RCVD %": RATE_APPROVAL}),
             "cities": table(city, MONEY, key_col="Pending", rates={"RCVD %": RATE_APPROVAL}),
+            "fabrics": table(fab, MONEY, key_col="Pending", rates={"RCVD %": RATE_APPROVAL}),
+            "status_by_date": table(sd_tbl, {"Pending": "inr"}, key_col="Pending", sort=False),
+            "lines": table(lines_tbl, {"Pending": "inr", "Order Date": "date", "Delivery Date": "date",
+                                       "Received Date": "date", "Order Qty": "int", "Pending Qty": "int"},
+                           sort=False),
             "overdue": table(od_tbl, {"Pending": "inr", "Delivery Date": "date"}, key_col="Days Overdue"),
             "pos": table(pos, {"Ordered": "inr", "Received": "inr", "Pending": "inr", "PO Date": "date",
                                "Delivery Date": "date"}, key_col="Pending", sort=False),
@@ -333,6 +404,11 @@ def orders_dashboard(d: pd.DataFrame, f: dict) -> dict:
                 {"name": "Ordered", "values": [float(v) for v in cb["Ordered"]] if not cb.empty else []},
                 {"name": "Received", "values": [float(v) for v in cb["Received"]] if not cb.empty else []},
                 {"name": "Pending", "values": [float(v) for v in cb["Pending"]] if not cb.empty else []}]},
+            "fabrics": {"categories": list(fb["Fabric"]), "series": [
+                {"name": "Ordered", "values": [float(v) for v in fb["Ordered"]]},
+                {"name": "Received", "values": [float(v) for v in fb["Received"]]},
+                {"name": "Pending", "values": [float(v) for v in fb["Pending"]]}]},
+            "fabric_lines": [{"label": r["Fabric"], "value": float(r["Lines"])} for _, r in fb.iterrows()],
             "timing": [{"label": t, "value": float(tm.get(t, 0))} for t in TIMINGS if tm.get(t, 0)],
         },
     }
@@ -349,6 +425,11 @@ def vendors_dashboard(d: pd.DataFrame, f: dict) -> dict:
                                                "Overdue", "Overdue Lines", "RCVD %", "On-Time %", "Avg Delay (days)"])
     city = x.groupby("vendor")["city"].agg(lambda s: next((c for c in s if c and c != "(BLANK)"), ""))
     vend.insert(1, "City", vend["Vendor"].map(city).fillna(""))
+    gv = x.groupby("vendor")
+    vend["First Order"] = vend["Vendor"].map(gv["po_date"].min())
+    vend["Last Order"] = vend["Vendor"].map(gv["po_date"].max())
+    vend["Next Delivery Due"] = vend["Vendor"].map(x[x["pending_qty"] > 0].groupby("vendor")["delivery_date"].min())
+    vend["Last Delivery Date"] = vend["Vendor"].map(gv["delivery_date"].max())
     body = vend[vend["Vendor"] != "TOTAL"]
     late = body[body["Overdue Lines"] > 0]
     rated = []
@@ -378,7 +459,8 @@ def vendors_dashboard(d: pd.DataFrame, f: dict) -> dict:
                     "most_pending": None if body.empty else {"name": body.sort_values("Pending").iloc[-1]["Vendor"],
                                                               "value": float(body["Pending"].max())},
                     "most_reliable": None if not rated else {"name": rated[0][0], "value": rated[0][1]}},
-        "tables": {"scorecard": table(vend, MONEY, key_col="Pending",
+        "tables": {"scorecard": table(vend, {**MONEY, "First Order": "date", "Last Order": "date",
+                                             "Next Delivery Due": "date", "Last Delivery Date": "date"}, key_col="Pending",
                                       rates={"RCVD %": RATE_APPROVAL, "On-Time %": RATE_APPROVAL})},
         "charts": {
             "pending": {"categories": list(vb["Vendor"]), "series": [
