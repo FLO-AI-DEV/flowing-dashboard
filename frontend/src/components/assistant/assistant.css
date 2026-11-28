@@ -364,3 +364,36 @@
     font-size: 16px; /* stops iOS zooming into the field */
   }
 }
+
+/* Starter questions in an empty chat: theme-aware chips (they lived in the old app.css). */
+.fa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 6px;
+}
+.fa-chip {
+  border: 1px solid var(--control-edge);
+  background: var(--control);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font: inherit;
+  font-size: var(--t-sm);
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease-out), background-color 0.15s var(--ease-out);
+}
+.fa-chip:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.fa-chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.fa-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
