@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import { api, getToken, setToken } from "./api/client";
+import { api, getToken, setToken, tokenExpiry } from "./api/client";
 import { useHealth, useStatus } from "./api/hooks";
 import { Wordmark } from "./components/Brand";
 import { Preloader } from "./components/Preloader";
@@ -13,6 +13,7 @@ const Team = lazy(() => import("./pages/Team"));
 const Clients = lazy(() => import("./pages/Clients"));
 const Enquiries = lazy(() => import("./pages/Enquiries"));
 const Payments = lazy(() => import("./pages/Payments"));
+const Returns = lazy(() => import("./pages/Returns"));
 
 function SignIn({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState("");
@@ -80,6 +81,7 @@ function Dashboard() {
           <Route path="/clients" element={<Clients />} />
           <Route path="/enquiries" element={<Enquiries />} />
           <Route path="/payments" element={<Payments />} />
+          <Route path="/returns" element={<Returns />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
@@ -89,9 +91,18 @@ function Dashboard() {
   );
 }
 
+/** A saved token counts only until it expires (the server issues them for TOKEN_HOURS, 24 h in production). */
+function hasLiveToken(): boolean {
+  const token = getToken();
+  if (!token) return false;
+  if (tokenExpiry(token) > Date.now()) return true;
+  setToken(null);
+  return false;
+}
+
 export default function App() {
   const health = useHealth();
-  const [signedIn, setSignedIn] = useState(() => !!getToken());
+  const [signedIn, setSignedIn] = useState(hasLiveToken);
   useEffect(() => {
     const out = () => {
       setToken(null);
@@ -100,6 +111,29 @@ export default function App() {
     window.addEventListener("flo:signed-out", out);
     return () => window.removeEventListener("flo:signed-out", out);
   }, []);
-  if (health.data?.auth_required && !signedIn) return <SignIn onDone={() => setSignedIn(true)} />;
+  // A tab left open past the token's expiry asks for the password again, without waiting for a failed request.
+  useEffect(() => {
+    if (!signedIn) return;
+    const exp = tokenExpiry(getToken());
+    if (!exp) return;
+    const id = window.setTimeout(() => window.dispatchEvent(new Event("flo:signed-out")), Math.max(0, Math.min(exp - Date.now(), 2 ** 31 - 1)));
+    return () => window.clearTimeout(id);
+  }, [signedIn]);
+  // Decide nothing until the server says whether a password is needed, so the preloader never shows before it.
+  if (health.isPending) return null;
+  if (health.data?.auth_required && !signedIn) {
+    return (
+      <SignIn
+        onDone={() => {
+          try {
+            sessionStorage.removeItem("flowing-intro"); // the preloader plays right after every sign-in
+          } catch {
+            /* ignore */
+          }
+          setSignedIn(true);
+        }}
+      />
+    );
+  }
   return <Dashboard />;
 }

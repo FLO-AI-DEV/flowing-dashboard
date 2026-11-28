@@ -40,6 +40,14 @@ SHEET_REGISTRY: dict[str, dict] = {
         "source_id": "1YtzUTartI0f1gDWwLFNDKsbwyYLO1cHeEhCL0ZaYQnE",
         "tab": "PO LOG",
     },
+    "returns": {
+        "name": "Sales returns",
+        # SALES RETURN 2025-2026 (owner digital@flowingindia.com), tab "Quality Check Sheet" (~50,000 rows, headings on
+        # row 2). Read directly: share the sheet with the service account (Viewer). Only the rows of the chosen time
+        # window are read.
+        "id": "1F104Hy40W2Veqhzt_spZs-47l_LK4fcy1x5T-MP_55Q",
+        "tab": "Quality Check Sheet",
+    },
 }
 
 
@@ -52,7 +60,7 @@ class Settings:
     refresh_cooldown: int = 15                  # minimum seconds between two forced refreshes
     passcode: str | None = None                 # when set, the API requires a login
     token_secret: str = "dev-only-secret"
-    token_hours: int = 24 * 14
+    token_hours: int = 24
     cors_origins: list[str] = field(default_factory=list)
 
 
@@ -72,6 +80,8 @@ def _load_service_account() -> dict | None:
 
 def _load_dotenv() -> None:
     """Minimal .env reader (KEY=VALUE lines) so local runs need no extra package."""
+    if os.getenv("FLO_SKIP_DOTENV") == "1":     # the test suite runs on demo data, whatever is in .env
+        return
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     env_path = os.path.join(here, ".env")
     if not os.path.isfile(env_path):
@@ -118,6 +128,6 @@ def get_settings() -> Settings:
         refresh_cooldown=int(os.getenv("REFRESH_COOLDOWN_SECONDS", "15")),
         passcode=os.getenv("DASHBOARD_PASSCODE") or None,
         token_secret=_token_secret(sa),
-        token_hours=int(os.getenv("TOKEN_HOURS", str(24 * 14))),
+        token_hours=int(os.getenv("TOKEN_HOURS", "24")),
         cors_origins=origins,
     )

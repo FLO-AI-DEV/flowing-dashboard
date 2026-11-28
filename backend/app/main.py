@@ -27,10 +27,11 @@ from .core import FY_LABEL, FY_MONTH_LABELS, now_ist
 from .dashboards import enquiries as enqs
 from .dashboards import orders as ords
 from .dashboards import payments as pays
+from .dashboards import returns as rets
 from . import nudges
-from .store import DEFAULT_PO_WINDOW, PO_WINDOWS, Dataset, DataStore, meta
+from .store import DEFAULT_PO_WINDOW, DEFAULT_RET_WINDOW, PO_WINDOWS, RET_WINDOWS, Dataset, DataStore, meta
 
-API_VERSION = "1.3.5-po"
+API_VERSION = "1.4.0-po"
 
 
 @lru_cache(maxsize=1)
@@ -237,6 +238,18 @@ def po_report(role: str, name: str, window: str = DEFAULT_PO_WINDOW):
         raise HTTPException(status_code=404, detail="Unknown person.")
 
 
+@app.get("/api/returns", dependencies=[Depends(require_auth)])
+def sales_returns(window: str = DEFAULT_RET_WINDOW, box: str = "", client: str = ""):
+    """Sales returns (GR): QC pass / fail, calls still to be made, the 90-day policy, months, clients and reasons."""
+    if window not in RET_WINDOWS:
+        window = DEFAULT_RET_WINDOW
+    ds = get_store().returns_dataset(window)
+    d = _need(ds)
+    body = rets.returns_dashboard(d, box=box, client=client)
+    body["windows"] = [{"key": k, "label": v[0]} for k, v in RET_WINDOWS.items()]
+    return _envelope(body, ds)
+
+
 @app.get("/api/payments", dependencies=[Depends(require_auth)])
 def payments(owner: Multi = [], sales_person: Multi = []):
     """Pending payments, who has not followed up, and collections — from the CRM payment follow-up sheet."""
@@ -331,6 +344,35 @@ def _nudge(body: NudgeBody, send: bool):
         raise
     except Exception as e:     # the nudges sheet could not be reached
         raise HTTPException(status_code=502, detail=f"Could not reach the nudges sheet: {e}")
+
+
+class NudgeAllBody(BaseModel):
+    role: str = "crm"               # crm = calling team, sp = sales people, kavita = escalation digest
+    scope: str = "todo"             # todo / escalated / overdue / all
+    force: bool = False
+
+
+def _nudge_all(body: NudgeAllBody, send: bool):
+    box = nudges.get_outbox(get_settings())
+    if box is None:
+        raise HTTPException(status_code=404, detail="WhatsApp sending is not set up. Add NUDGE_SHEET_ID to the dashboard settings.")
+    view, _ds = _po(DEFAULT_PO_WINDOW)
+    try:
+        return (nudges.send_all if send else nudges.preview_all)(box, view, body.role, body.scope, *([body.force] if send else []))
+    except nudges.NudgeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not reach the nudges sheet: {e}")
+
+
+@app.post("/api/nudge/all/preview", dependencies=[Depends(require_auth)])
+def nudge_all_preview(body: NudgeAllBody):
+    return _nudge_all(body, send=False)
+
+
+@app.post("/api/nudge/all/send", dependencies=[Depends(require_auth)])
+def nudge_all_send(body: NudgeAllBody):
+    return _nudge_all(body, send=True)
 
 
 @app.get("/api/nudge/who", dependencies=[Depends(require_auth)])

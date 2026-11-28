@@ -19,6 +19,7 @@ from ..core import today_ist
 DEMO_SHEET_ID = "1HS61QM69oQXf6HeEeRo9GrM-2UaMzeiZtVxGptCPvSI"   # Flo-Wing Data Mirror
 DEMO_ENQUIRIES_ID = "1OqnAbP8B1VFw6ZJXT1_ZTMQLt4hQ3AWzzxjFCZcM3Bc"
 DEMO_PAYMENTS_ID = "1XaVX7YA_7mYThyJctaXNguwWgaD-dRUgRi5dgeviT8Y"
+DEMO_RETURNS_ID = "1F104Hy40W2Veqhzt_spZs-47l_LK4fcy1x5T-MP_55Q"
 PAY_HEAD = ["Column 1", "Column 2", "Column 3", "CONTACT NO", "AMOUNT", "Column 6", "PO SEND", "PAYMENT STATUS",
             "Column 9", "Column 10", "FOLLOW UP -2", "FOLLOW UP -3", "FOLLOW UP -4", "FOLLOW UP -5", "FOLLOW UP -6",
             "Column - 7", "Column 8", "Column 9", "Column 18", "Column 20", "PART PAYMENT RECEIVED"]
@@ -181,6 +182,35 @@ def _enquiry_tabs(rng, today: date) -> dict:
     return {"ENQ CALLS": calls, "ENQ LOGISTICS": logistics, "ENQ BILLING": billing}
 
 
+def _returns_grid(rng, today: date) -> list[list]:
+    """Rows shaped like the real Quality Check Sheet: heading on row 2 (row 1 empty), "CR No." twice, mixed date formats."""
+    head = ["DATE", "BILL NO./DATE", "BILL DATE", "Days", "Client Name", "Barcode", "Color", "QTY. PCS", "QC Pass", "QC FAIL",
+            "CR No.", "CR No.", "Calling Remark", "Return To Client", "Return\nApproved By", "Amount"]
+    clients = ["FRONTIER RAAS PVT. LTD (DELHI) W.S.", "DARJEE (AMRAVATI) W.S. 073", "NAVSHE (Jodhpur) W.S", "SIA (PUNE) NEW W.S.",
+               "GITA VATIKA INDRANAGAR (LUCKNOW) W.S.065", "COTTON CLUB (BENGALURU) W.S.", "MALIK GARMENTS (DELHI) W.S 002"]
+    fails = ["TOP ME DHAG HAI", "KURTI FAT RHA HAI", "PANT CHHIKA HAI", "TOP KE BUTTON HAT RHE HAI", "DUPATTE ME COLOUR KA DAAG", "WRONG PIECE"]
+    rows, n = [[], head], 0
+    for back in range(110, -1, -1):
+        d = today - timedelta(days=back)
+        if d.weekday() == 6:
+            continue
+        for _ in range(rng.randint(1, 3)):
+            n += 1
+            client = rng.choice(clients)
+            bill_d = d - timedelta(days=rng.choice([6, 15, 40, 70, 95, 140]))
+            qty = rng.choice([1, 1, 2, 4, 6])
+            kind = rng.choice(["pass", "fail", "fail", "mixed"])
+            ok, bad = (qty, 0) if kind == "pass" else (0, qty) if kind == "fail" else (qty // 2 or 1, qty - (qty // 2 or 1))
+            cr = f"FWSR-{n:05d}/2627"
+            note = "PCS SAHI H" if ok else rng.choice(fails)
+            remark = "" if (ok and back < 12 and rng.random() < .7) or (ok and rng.random() < .25) else ("called, will send back" if ok else "")
+            for b in range(rng.choice([1, 1, 2])):
+                rows.append([d.strftime("%d/%m/%Y"), f"FW-{15000 + n}/2627", bill_d.strftime("%d/%m/%y"), str((d - bill_d).days), client,
+                             f"FW{rng.randint(100, 999)}- {rng.randint(100000, 999999)}", "", str(qty), str(ok or ""), str(bad or ""), cr, note,
+                             remark, "", "", str(rng.randint(400, 6000))])
+    return rows
+
+
 class DemoSheetSource:
     name = "demo"
 
@@ -217,6 +247,7 @@ class DemoSheetSource:
                 [["CLIENT NAME", "AMOUNT"], ["Someone", "1000"]]
             self._enquiries = _enquiry_tabs(rng, today)
             self._payments = {"PO LOG": _payments_grid(rng, today)}
+            self._returns = {"Quality Check Sheet": _returns_grid(rng, today)}
             self._tabs, self._built_for = tabs, today
             return tabs
 
@@ -228,6 +259,9 @@ class DemoSheetSource:
         if sheet_id == DEMO_PAYMENTS_ID:
             self._build()
             return [(t, i) for i, t in enumerate(self._payments)]
+        if sheet_id == DEMO_RETURNS_ID:
+            self._build()
+            return [(t, i) for i, t in enumerate(self._returns)]
         if sheet_id != DEMO_SHEET_ID:
             from .google import SheetAccessError
             raise SheetAccessError("Unknown sheet id (demo source).")
@@ -239,6 +273,8 @@ class DemoSheetSource:
             return [list(r) for r in self._enquiries[tab]]
         if sheet_id == DEMO_PAYMENTS_ID:
             return [list(r) for r in self._payments[tab]]
+        if sheet_id == DEMO_RETURNS_ID:
+            return [list(r) for r in self._returns[tab]]
         return [list(r) for r in tabs[tab]]
 
     def get_range(self, sheet_id, tab, a1, formatted=False):

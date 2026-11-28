@@ -91,6 +91,7 @@ SOLVED, IN_PROCESS, PENDING, NOT_MARKED = "Solved", "In process", "Pending", "No
 STATUS_ORDER = [PENDING, IN_PROCESS, NOT_MARKED, SOLVED]
 OLD_DAYS = 30
 OTHER_KEY = "other"
+NOT_CATEGORISED = "Not categorised yet"
 TOP_ABOUT = 10
 
 
@@ -142,12 +143,12 @@ def parse_enquiries(tab_grids: list[tuple[str, str, list]], today=None) -> dict:
     d["solved"] = d["status_word"] == SOLVED
     d["about_tidy"] = d["about"].map(tidy_about)
     # Group by the team's CATEGORY when the row has one; until a row is categorised, by what was typed.
-    cat = d["category"].str.strip()
-    guess = pd.Series([auto_category(a, r) for a, r in zip(d["about"], d["remark"])], index=d.index)
-    d["auto_category"] = (cat == "") & (guess != "")
-    cat = cat.where(cat != "", guess)
+    # The groups are the team's own CATEGORY values from the sheet, nothing guessed. A row with no category yet is
+    # listed under "Not categorised yet" so it is easy to find and fill in.
+    cat = d["category"].str.replace(r"\s+", " ", regex=True).str.strip()
+    d["auto_category"] = False
     d["category"] = cat
-    d["group_label"] = d["about_tidy"].where(cat == "", cat.map(lambda t: t[:1].upper() + t[1:]))
+    d["group_label"] = cat.map(lambda t: (t[:1].upper() + t[1:]) if t else NOT_CATEGORISED)
     d["about_key"] = d["group_label"].map(slug)
     d["solved_on_dt"] = parse_dates(d["solved_on"]).dt.normalize()
     d["client_tidy"] = d["client"].str.strip()
@@ -170,15 +171,8 @@ def _open(d: pd.DataFrame) -> pd.DataFrame:
 def _groups(op: pd.DataFrame) -> list[tuple[str, str, pd.DataFrame]]:
     """The open enquiries grouped by what they are about: the biggest groups, the rest as one 'Other'."""
     counts = op["about_key"].value_counts()
-    top = list(counts.index[:TOP_ABOUT])
-    out = []
-    for key in top:
-        rows = op[op["about_key"] == key]
-        out.append((key, rows["group_label"].iloc[0], rows))
-    rest = op[~op["about_key"].isin(top)]
-    if len(rest):
-        out.append((OTHER_KEY, "Other topics", rest))
-    return out
+    keys = sorted(counts.index, key=lambda k: (op.loc[op["about_key"] == k, "group_label"].iloc[0] == NOT_CATEGORISED, -counts[k]))
+    return [(k, op.loc[op["about_key"] == k, "group_label"].iloc[0], op[op["about_key"] == k]) for k in keys]   # every category
 
 
 def home_dashboard(data, today=None) -> dict:
@@ -188,11 +182,11 @@ def home_dashboard(data, today=None) -> dict:
     op = _open(d)
     counts = {w: int((day["status_word"] == w).sum()) for w in STATUS_ORDER}
     kpis = [
-        kpi("Enquiries today", len(day), hint=f"{counts[SOLVED]} solved", id="today"),
-        kpi("Open now", len(op), hint="all days, not marked Solved", id="open"),
-        kpi("Older than 30 days", int((op["days_open"] > OLD_DAYS).sum()), hint="still open", id="old"),
-        kpi("Not picked up", int(((op["status_word"] == NOT_MARKED) & (op["days_open"] <= OLD_DAYS)).sum()),
+        kpi("Enquired today", len(day), hint=f"{counts[SOLVED]} solved", id="today"),
+        kpi("Total open", len(op), hint="all days, not marked Solved", id="open"),
+        kpi("Not picked up yet", int(((op["status_word"] == NOT_MARKED) & (op["days_open"] <= OLD_DAYS)).sum()),
             hint=f"no status yet, last {OLD_DAYS} days", id="notpicked"),
+        kpi("Older than 30 days", int((op["days_open"] > OLD_DAYS).sum()), hint="still open", id="old"),
     ]
     causes = []
     for key, label, rows in _groups(op):
@@ -200,7 +194,7 @@ def home_dashboard(data, today=None) -> dict:
                        "older": int((rows["days_open"] > OLD_DAYS).sum()), "oldest_days": int(rows["days_open"].max())})
     by_source = [{"source": s, "open": int((op["source"] == s).sum()), "total": int((d["source"] == s).sum())}
                  for _t, s in TABS]
-    auto = int(op["auto_category"].sum()) if "auto_category" in op else 0
+    auto = int((op["group_label"] == NOT_CATEGORISED).sum())      # open enquiries whose CATEGORY is still blank
     return {"auto_categorised": auto, "kpis": kpis, "today": {"received": len(day), "status": counts}, "causes": causes, "by_source": by_source,
             "total_open": len(op), "notices": data.get("issues", [])}
 

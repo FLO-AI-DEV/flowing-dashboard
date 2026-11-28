@@ -64,10 +64,10 @@ def test_team_columns_are_read_and_category_wins_over_typed_text():
     assert not d["issues"]
     assert list(df["assigned"]) == ["Anjali", "", ""] and list(df["bill_no"])[0] == "3504/2627"
     assert df["solved_on_dt"].iloc[0] == pd.Timestamp("2026-10-13")
-    assert list(df["group_label"]) == ["Parcel tracking / LR / GR"] * 3     # the third one is filled by the guess
-    assert list(df["auto_category"]) == [False, False, True]
+    assert list(df["group_label"]) == ["Parcel tracking / LR / GR"] * 2 + ["Not categorised yet"]     # only the sheet's own categories; nothing guessed
+    assert list(df["auto_category"]) == [False, False, False]
     h = e.home_dashboard(d, TODAY)
-    assert {c["label"]: c["open"] for c in h["causes"]} == {"Parcel tracking / LR / GR": 2}
+    assert {c["label"]: c["open"] for c in h["causes"]} == {"Parcel tracking / LR / GR": 1, "Not categorised yet": 1}
     assert h["auto_categorised"] == 1
 
 

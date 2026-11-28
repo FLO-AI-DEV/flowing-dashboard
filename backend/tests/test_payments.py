@@ -38,7 +38,7 @@ def test_states_staleness_and_bulk_paste():
     )
     o = d["orders"].set_index("client")
     assert o.loc["Alpha", ["state", "follow_ups", "days_since_touch", "stale"]].tolist() == ["pending", 2, 6, True]
-    assert o.loc["Beta", ["stale", "days_since_touch"]].tolist() == [False, 1]
+    assert o.loc["Beta", ["stale", "days_since_touch"]].tolist() == [True, 1]    # days 1-7: a call every day
     assert o.loc["Gamma", ["state", "collect_days"]].tolist() == ["received", 2]
     assert o.loc["Delta", "state"] == "cancelled"
     assert o.loc["Never called", ["stale", "follow_ups", "days_since_touch"]].tolist() == [True, 0, 5]
@@ -98,9 +98,9 @@ def row2(ts, client, so, amount, sp, status, owner, *notes, po_send="YES"):
     return r
 
 
-def test_clock_starts_at_po_share_note_and_buckets():
+def test_clock_starts_at_order_date_and_buckets():
     d = parse(
-        # order 15 Nov, PO shared 17 Nov -> day 3 on 20 Nov (on track), not day 5
+        # order 15 Nov, PO shared 17 Nov -> the clock still starts on the order date: day 5 on 20 Nov
         row2("15/11/2026 10:00:00", "Late share", "FWSO-11/2627", 10000, "PIYUSH", "", "KIRAN",
              "po shared  —  17/11/2026 11:00:00 AM"),
         row2("13/11/2026 10:00:00", "Due soon", "FWSO-12/2627", 20000, "PIYUSH", "", "KIRAN"),
@@ -109,8 +109,8 @@ def test_clock_starts_at_po_share_note_and_buckets():
         row2("20/11/2026 10:00:00", "Not sent", "FWSO-15/2627", 5000, "LUV", "", "KIRAN", po_send=""),
     )
     o = d["orders"].set_index("client")
-    assert o["days_out"].to_dict() == {"Late share": 3, "Due soon": 7, "Overdue": 9, "Past limit": 15, "Not sent": 0}
-    assert o["bucket"].to_dict() == {"Late share": "on_track", "Due soon": "due_soon", "Overdue": "overdue",
+    assert o["days_out"].to_dict() == {"Late share": 5, "Due soon": 7, "Overdue": 9, "Past limit": 15, "Not sent": 0}
+    assert o["bucket"].to_dict() == {"Late share": "due_soon", "Due soon": "due_soon", "Overdue": "overdue",
                                      "Past limit": "past_limit", "Not sent": "on_track"}
 
 
@@ -182,3 +182,55 @@ def test_person_report_numbers_agree_with_overview():
     assert [a["label"] for a in r["ages"]] == ["0–4 days", "5–7 days", "8–10 days", "11+ days"]
     assert sum(a["count"] for a in r["ages"]) == r["open"]["count"]
     assert r["worst"][0]["client"] == "Past limit" and {x["name"] for x in r["split"]} == {"Kiran", "Lokesh"}
+
+
+def test_daily_follow_up_discipline_missed_days_and_escalation():
+    # made Mon 9 Nov; today Fri 20 Nov (day 11). Calls on 10, 11, 13 Nov only. Days 1-7 = 10..16 Nov minus Sun 15th.
+    d = parse(row("09/11/2026 10:00:00", "Skipper", "FWSO-31/2627", 50000, "PIYUSH", "", "KIRAN",
+                  "call not pickup  —  10/11/2026 11:00:00 AM", "msg drop  —  11/11/2026 11:00:00 AM",
+                  "asked time  —  13/11/2026 11:00:00 AM"))
+    o = d["orders"].iloc[0]
+    assert (o["days_out"], o["fu_expected"], o["fu_done"], o["fu_missed"]) == (11, 6, 3, 3)
+    assert o["esc"] == "L3" and o["fu_next"] == 4 and o["stale"]        # after day 7: every other day, 7 days silent
+
+
+def test_escalation_levels_and_timer():
+    d = parse(row("16/11/2026 10:00:00", "A", "FWSO-41/2627", 1000, "P", "", "KIRAN"),
+              row("12/11/2026 10:00:00", "B", "FWSO-42/2627", 1000, "P", "", "KIRAN"),
+              row("08/11/2026 10:00:00", "C", "FWSO-43/2627", 1000, "P", "", "KIRAN"))
+    o = d["orders"].set_index("client")
+    assert o["esc"].to_dict() == {"A": "", "B": "L2", "C": "L3"}
+    assert o.loc["B", "due_in"] == -1 and o.loc["A", "due_in"] == 3 and o.loc["C", "limit_in"] == -2
+
+
+def test_promise_read_from_note_text():
+    ts = pd.Timestamp("2026-11-18 11:00")
+    assert pm.promise_in_note("kal payment karenge", ts) == pd.Timestamp("2026-11-19")
+    assert pm.promise_in_note("parso", ts) == pd.Timestamp("2026-11-20")
+    assert pm.promise_in_note("aaj kal me", ts) == pd.Timestamp("2026-11-19")
+    assert pm.promise_in_note("25/11 tak", ts) == pd.Timestamp("2026-11-25")
+    assert pm.promise_in_note("call not pickup", ts) is pd.NaT
+    d = parse(row("10/11/2026 10:00:00", "Promise", "FWSO-51/2627", 9000, "P", "", "KIRAN",
+                  "kal payment karenge  —  19/11/2026 11:00:00 AM"))
+    o = d["orders"].iloc[0]
+    assert o["promise_from_note"] and o["promise_kept_wait"] and not o["todo"]     # promised 20 Nov = today: wait
+
+
+def test_po_share_note_is_not_a_follow_up():
+    d = parse(row("18/11/2026 10:00:00", "Shared", "FWSO-61/2627", 4000, "P", "", "KIRAN",
+                  "po shared  —  18/11/2026 12:00:00 PM"))
+    o = d["orders"].iloc[0]
+    assert o["calls"] == 0 and o["fu_done"] == 0 and o["follow_ups"] == 1
+
+
+def test_po_not_sent_box_filters_like_an_age_box():
+    from tests.test_payments import row2
+    d = parse(row2("15/11/2026 10:00:00", "Unsent", "FWSO-71/2627", 10000, "PIYUSH", "", "KIRAN", po_send=""),
+              row2("15/11/2026 10:00:00", "Sent", "FWSO-72/2627", 20000, "PIYUSH", "", "KIRAN", po_send="YES"))
+    d["window"] = {"key": "60d", "label": "x"}
+    o = pm.po_overview(d, today=TODAY)
+    box = {b["key"]: b for b in o["buckets"]}["not_sent"]
+    assert (box["count"], box["amount"]) == (1, 10000.0)
+    rows = pm.person_rows(d, "crm", "Kiran", bucket="not_sent")
+    assert rows["client"].tolist() == ["Unsent"] and rows["days_out"].iloc[0] == 5     # timer from the day the PO was made
+    assert pm.nudge_rows(d, "crm:Kiran", "b:not_sent")["client"].tolist() == ["Unsent"]

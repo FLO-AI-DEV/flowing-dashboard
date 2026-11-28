@@ -15,6 +15,18 @@ export function getToken(): string | null {
   }
 }
 
+/** When a sign-in token stops working (ms since epoch), read from its own payload; 0 if it can't be read. */
+export function tokenExpiry(token: string | null): number {
+  if (!token) return 0;
+  try {
+    const payload = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    const exp = Number(JSON.parse(atob(payload + "=".repeat((4 - (payload.length % 4)) % 4))).exp);
+    return Number.isFinite(exp) ? exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function setToken(token: string | null) {
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);

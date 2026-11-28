@@ -1,4 +1,4 @@
-import { Building2, ClipboardList, MessageCircleQuestion, IndianRupee, LayoutDashboard, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sun, Users, X } from "lucide-react";
+import { Building2, ClipboardList, MessageCircleQuestion, IndianRupee, LayoutDashboard, Undo2, Menu, Moon, PanelLeftClose, PanelLeftOpen, RefreshCw, Sun, Users, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useFetchingReporter, useRefreshAll } from "../../api/hooks";
@@ -13,6 +13,7 @@ export const NAV = [
     { to: "/orders", label: "Orders", icon: ClipboardList },
     { to: "/enquiries", label: "Enquiries", icon: MessageCircleQuestion },
     { to: "/payments", label: "PO follow-up", icon: IndianRupee },
+    { to: "/returns", label: "Sales returns", icon: Undo2 },
     { to: "/team", label: "Team", icon: Users },
     { to: "/clients", label: "Clients", icon: Building2 },
   ] },

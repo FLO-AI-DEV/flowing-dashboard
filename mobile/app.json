@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "FLO Operations",
-    "slug": "flo",
+    "slug": "flowing",
     "scheme": "flo",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -47,10 +47,15 @@
     "experiments": {
       "typedRoutes": true
     },
-    "owner": "flo-ais-team",
+    "owner": "flo-wings-team",
     "extra": {
       "eas": {
-        "projectId": "67bb1637-0fa4-4b4b-ac48-983ab39a9965"
+        "projectId": "44b86b45-7422-437b-95a7-f2dd59547385"
+      },
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
       }
     }
   }

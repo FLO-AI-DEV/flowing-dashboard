@@ -22,6 +22,7 @@ from .core import parse_dates, today_ist
 from .dashboards import orders as ords
 from .dashboards import enquiries as enqs
 from .dashboards import payments as pays
+from .dashboards import returns as rets
 from .sources.google import SheetAccessError
 
 KINDS = ["orders", "payments"]
@@ -34,6 +35,9 @@ OLD_TAB_TTL = 6 * 3600      # month tabs older than last month are re-read every
 PO_WINDOWS = {"30d": ("Last 30 days", 30), "60d": ("Last 60 days", 60), "90d": ("Last 90 days", 90),
               "fy": ("This financial year", None)}
 DEFAULT_PO_WINDOW = "60d"
+RET_WINDOWS = {"30d": ("Last 30 days", 30), "90d": ("Last 90 days", 90), "fy": ("This financial year", None), "all": ("Everything in the sheet", None)}
+DEFAULT_RET_WINDOW = "fy"
+RET_LAST_COL = "T"
 PO_LAST_COL = "V"            # A..T is the form; two spare columns
 
 
@@ -200,6 +204,13 @@ class DataStore:
             want = cfg["tab"].strip().lower()
             names = [t for t, _ in meta]
             return [next((t for t in names if t.strip().lower() == want), names[0])]
+        if kind == "returns":
+            want = cfg["tab"].strip().lower()
+            names = [t for t, _ in meta]
+            hit = next((t for t in names if t.strip().lower() == want), None)
+            if hit is None:
+                raise SheetAccessError("The sales return sheet has no 'Quality Check Sheet' tab.")
+            return [hit]
         raise KeyError(kind)
 
     def _entries(self, kind) -> tuple[list, list]:
@@ -286,7 +297,49 @@ class DataStore:
                 self._parsed[key] = (version, data)
         return Dataset("payments", data, fetched, version, error=stale_err, stale=bool(stale_err), tabs=[tab])
 
+    def returns_dataset(self, window: str = DEFAULT_RET_WINDOW) -> Dataset:
+        """The Quality Check Sheet, but only the rows of `window`. Rows are in date order, so column A alone (one cheap
+        read) finds the first row of the window and the rest of the ~50,000 rows is never downloaded."""
+        window = window if window in RET_WINDOWS else DEFAULT_RET_WINDOW
+        sid = SHEET_REGISTRY["returns"]["id"]
+        try:
+            tab = self.source_tabs("returns")[0]
+            dates = self.part(sid, tab, "A:A", ttl=300)
+            head = self.part(sid, tab, f"A1:{RET_LAST_COL}3", ttl=300)
+            col = [r[0] if r else "" for r in dates.value]
+            last = max((i for i, v in enumerate(col) if str(v).strip()), default=0) + 1
+            when = parse_dates(pd.Series(col[2:last]))             # rows 1-2 are the heading rows
+            days = RET_WINDOWS[window][1]
+            start = rets.FY_START if window == "fy" else (pd.Timestamp("2000-01-01") if window == "all"
+                                                          else today_ist().normalize() - pd.Timedelta(days=days))
+            hit = when.index[when >= start]
+            first_row = max(3, int(hit[0]) + 3 - 25) if len(hit) else last + 1
+            body = self.part(sid, tab, f"A{first_row}:{RET_LAST_COL}{last}", ttl=300) if first_row <= last else None
+        except SheetAccessError as e:
+            return Dataset("returns", None, None, "", error=str(e))
+        except Exception as e:
+            return Dataset("returns", None, None, "", error=f"{type(e).__name__}: {e}")
+        entries = [dates, head] + ([body] if body is not None else [])
+        grid = [list(r) for r in head.value[:2]] + ([list(r) for r in body.value] if body is not None else [])
+        version = _digest([e.version for e in entries] + [window, str(today_ist().date())])
+        stale_err = next((e.error for e in entries if e.error), None)
+        fetched = min(e.fetched_at for e in entries)
+        key = ("returns", window)
+        with self._parsed_lock:
+            cached = self._parsed.get(key)
+        if cached and cached[0] == version:
+            data = cached[1]
+        else:
+            data = rets.parse_returns(grid)
+            data["window"] = {"key": window, "label": RET_WINDOWS[window][0], "start": start.strftime("%d %b %Y") if window != "all" else "the start",
+                              "rows": max(0, last - first_row + 1) if body is not None else 0, "log_rows": last - 2}
+            with self._parsed_lock:
+                self._parsed[key] = (version, data)
+        return Dataset("returns", data, fetched, version, error=stale_err, stale=bool(stale_err), tabs=[tab])
+
     def dataset(self, kind) -> Dataset:
+        if kind == "returns":
+            return self.returns_dataset(DEFAULT_RET_WINDOW)
         if kind == "payments":
             return self.payments_dataset(DEFAULT_PO_WINDOW)
         try:

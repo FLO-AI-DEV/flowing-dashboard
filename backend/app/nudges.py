@@ -47,7 +47,7 @@ CLOSING = {
 }
 PAYMENT_SCOPES = {"todo": "to do today", "overdue": f"overdue ({pays.DUE_DAYS + 1}+ days)",
                   "due": f"due within {pays.DUE_DAYS} days", "all": "all open",
-                  "stale": "not followed up for 2+ days", "today": "sent today", "week": "sent yesterday to 7 days ago", "month": "sent 8 to 30 days ago",
+                  "stale": "follow-up due", "escalated": "escalated, 8+ days", "today": "sent today", "week": "sent yesterday to 7 days ago", "month": "sent 8 to 30 days ago",
                   "older": "sent over 30 days ago",
                   "b:on_track": "0-4 days, on track", "b:due_soon": f"5-{pays.DUE_DAYS} days, payment due soon",
                   "b:overdue": f"{pays.DUE_DAYS + 1}-{pays.LIMIT_DAYS} days, overdue",
@@ -236,6 +236,8 @@ def compose_payment(person: Person, rows: pd.DataFrame, group: str, scope: str) 
         a = float(r["amount_n"])
         a = f"₹{a / 1e5:.1f}L" if a >= 1e5 else f"₹{a:,.0f}"
         tag = {"past_limit": "at risk of cancellation", "overdue": "overdue", "due_soon": "due soon", "not_sent": "PO not sent"}.get(r["bucket"], "")
+        if role == "crm" and r.get("fu_missed", 0) > 0 and r["bucket"] not in ("past_limit", "overdue"):
+            tag = (tag + ", " if tag else "") + f"follow-up {int(r['fu_next'])} due"
         if r.get("held"):
             tag = f"part payment received, balance ₹{max(float(r['amount_n']) - float(r['part_paid_n']), 0):,.0f}, on hold"
         elif r.get("promise_kept_wait") or r.get("promise_broken"):
@@ -311,3 +313,95 @@ def send(outbox, orders_view, cause: str, scope: str, min_days: int = 0, force: 
                        f"DASHBOARD {cause} {scope}" + (f" {min_days}d" if scope == "custom" else "") + (f" {group}" if cause in ("enquiry", "payment") else ""), ""])
     _sent[(cause, group if cause in ("enquiry", "payment") else "", scope, min_days if scope == "custom" else 0)] = time.time()
     return {**p, "sent": True, "sent_at": stamp}
+
+
+# ------------------------------------------------------------------------------------------ message everyone
+ALL_SCOPES = {"todo": "to do today", "escalated": "escalated", "overdue": "overdue", "all": "all open"}
+ROLE_NAMES = {"crm": "calling team", "sp": "sales people"}
+
+
+def _everyone(outbox, po_view, role: str, scope: str):
+    """[(group, Person | None, rows)] for every caller (crm) or sales person (sp) who has POs in this selection."""
+    if role not in ROLE_NAMES:
+        raise NudgeError("Choose who to message: the calling team or the sales people.")
+    if scope not in ALL_SCOPES:
+        raise NudgeError("Choose which POs to send: to do today, escalated, overdue or all open.")
+    staff = {p.name.strip().casefold(): p for p in outbox.staff()}
+    col, _ = pays.ROLES[role]
+    out = []
+    for name in sorted(po_view["orders"][col].unique()):
+        if name.startswith("("):            # "(unassigned)" / "(none)"
+            continue
+        group = f"{role}:{name}"
+        try:
+            rows = pays.nudge_rows(po_view, group, scope)
+        except (KeyError, ValueError):
+            continue
+        if len(rows):
+            out.append((group, staff.get(name.strip().casefold()), rows))
+    out.sort(key=lambda x: -len(x[2]))
+    return out
+
+
+def _kavita(outbox, po_view):
+    d = po_view["orders"]
+    rows = d[(d["state"] == "pending") & d["esc"].isin(["L2", "L3"])].sort_values(["esc", "days_out", "amount_n"], ascending=[False, False, False])
+    hit = [p for p in outbox.staff() if p.name.strip().casefold() == "kavita"]
+    return (hit[0] if hit else None), rows
+
+
+def compose_kavita(person: Person, rows: pd.DataFrame) -> str:
+    total = float(rows["amount_n"].sum())
+    amt = f"₹{total / 1e5:.1f} L" if total >= 1e5 else f"₹{total:,.0f}"
+    l3 = int((rows["esc"] == "L3").sum())
+    lines = []
+    for _, r in rows.head(MAX_LINES).iterrows():
+        a = float(r["amount_n"])
+        a = f"₹{a / 1e5:.1f}L" if a >= 1e5 else f"₹{a:,.0f}"
+        lines.append(f"- {r['client']} ({a}, day {int(r['days_out'])}, {r['sales_person']} / {r['owner']}{', part paid' if r['held'] else ''})")
+    more = f"\n...and {len(rows) - MAX_LINES} more" if len(rows) > MAX_LINES else ""
+    url = os.getenv("NUDGE_DASHBOARD_URL", "").strip()
+    link = f"\nFull list: {url}" if url else ""
+    return (f"{person.name}, {len(rows)} POs escalated to you ({amt}), {l3} of them past {pays.LIMIT_DAYS} days and needing a cancel-or-collect decision:\n"
+            + "\n".join(lines) + more + link)
+
+
+def preview_all(outbox, po_view, role: str, scope: str) -> dict:
+    items = []
+    if role == "kavita":
+        person, rows = _kavita(outbox, po_view)
+        if len(rows):
+            items.append({"name": "Kavita", "group": "kavita", "count": len(rows), "ready": person is not None,
+                          "message": compose_kavita(person, rows) if person else "", "already_sent_minutes": _recent(("payment", "kavita", "escalated", 0))})
+    else:
+        for group, person, rows in _everyone(outbox, po_view, role, scope):
+            items.append({"name": group.partition(":")[2], "group": group, "count": len(rows), "ready": person is not None,
+                          "message": compose_payment(person, rows, group, scope) if person else "",
+                          "already_sent_minutes": _recent(("payment", group, scope, 0))})
+    return {"items": items, "ready": sum(1 for i in items if i["ready"]), "missing": [i["name"] for i in items if not i["ready"]],
+            "test_mode": outbox.test_mode}
+
+
+def _recent(key):
+    last = _sent.get(key)
+    return int((time.time() - last) // 60) if last and time.time() - last < COOLDOWN_SECONDS else None
+
+
+def send_all(outbox, po_view, role: str, scope: str, force: bool = False) -> dict:
+    p = preview_all(outbox, po_view, role, scope)
+    if not p["items"]:
+        raise NudgeError("There are no POs in this selection, so nothing was sent.")
+    stamp = now_ist().strftime("%d %b %H:%M:%S")
+    sent, skipped_recent, missing = [], [], list(p["missing"])
+    people = {x.name.strip().casefold(): x for x in outbox.staff()}
+    for it in p["items"]:
+        if not it["ready"]:
+            continue
+        if it["already_sent_minutes"] is not None and not force:
+            skipped_recent.append(it["name"])
+            continue
+        person = people[it["name"].strip().casefold()]
+        outbox.append([stamp, person.name, "'" + person.number, it["message"], "", f"DASHBOARD payment {scope if role != 'kavita' else 'escalated'} {it['group']}", ""])
+        _sent[("payment", it["group"], scope if role != "kavita" else "escalated", 0)] = time.time()
+        sent.append(it["name"])
+    return {"sent": sent, "skipped_recent": skipped_recent, "missing": missing, "sent_at": stamp, "test_mode": outbox.test_mode}

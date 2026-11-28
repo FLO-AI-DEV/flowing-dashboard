@@ -1864,3 +1864,22 @@ button.po-stat.link[aria-pressed="true"] { text-decoration: underline; color: va
 .po-stats { gap: 8px 16px; flex: 1 1 0; justify-content: flex-end; flex-wrap: wrap; }
 .po-stat { white-space: nowrap; }
 .po-sub > b { margin-left: .35em; }
+
+/* ---- timer, escalation, progress, message everyone (1.4.0) ---- */
+.po-timer{font-size:.8rem;padding:.1rem .45rem;border-radius:999px;background:var(--surface-2,rgba(0,0,0,.05));white-space:nowrap}
+.po-timer.tone-bad{color:var(--bad,#b3261e)}.po-timer.tone-warn{color:var(--warn,#a15c00)}.po-timer.tone-good{color:var(--good,#1b6e3c)}
+.po-level{font-size:.72rem;font-weight:700;padding:.1rem .4rem;border-radius:4px;color:#fff;background:#a15c00}
+.po-level.lv-L2{background:#c2410c}.po-level.lv-L3{background:#b3261e}
+.po-missed{color:var(--bad,#b3261e);font-weight:600}
+.po-progress{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.5rem 0;font-size:.9rem}
+.po-bar{flex:0 0 160px;height:8px;border-radius:99px;background:rgba(0,0,0,.08);overflow:hidden}
+.po-bar span{display:block;height:100%;background:var(--good,#1b6e3c)}
+.po-clients{margin:.4rem 0 0;padding-left:1.1rem;font-size:.88rem;line-height:1.6}
+.send-all-list{list-style:none;margin:.4rem 0;padding:0}.send-all-list li{padding:.2rem 0;border-bottom:1px solid rgba(0,0,0,.06)}
+.send-all-list summary{cursor:pointer}
+.send-off{font-size:.8rem;opacity:.7;align-self:center}
+
+.po-sub>span{display:block}
+.po-team-table{width:100%;border-collapse:collapse;font-size:.88rem;margin:.4rem 0}
+.po-team-table th,.po-team-table td{padding:.35rem .5rem;text-align:left;border-bottom:1px solid rgba(0,0,0,.08)}
+.po-team-table td.bad{color:var(--bad,#b3261e);font-weight:600}

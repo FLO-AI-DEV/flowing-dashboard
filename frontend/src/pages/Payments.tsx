@@ -2,6 +2,7 @@ import { ChevronRight, Phone } from "lucide-react";
 import { useState } from "react";
 import { useDashboard } from "../api/hooks";
 import type { PoOverview, PoPerson, PoPersonStat, PoReport } from "../api/types";
+import { SendAll } from "../components/SendAll";
 import { SendPanel, useNudgeWho } from "../components/SendPanel";
 import { Empty, Notices, Panel } from "../components/ui";
 import { inrShort } from "../lib/format";
@@ -10,11 +11,11 @@ import { PageHead, PageState } from "./common";
 
 type Role = "crm" | "sp";
 type Focus = "" | "stale";
-const SCOPES: [string, string][] = [["todo", "To do today"], ["stale", "Not followed up (2+ days)"], ["all", "All open"]];
-const BUCKET_TONE: Record<string, string> = { past_limit: "bad", overdue: "bad", due_soon: "warn", on_track: "good" };
+const SCOPES: [string, string][] = [["todo", "To do today"], ["stale", "Follow-up due"], ["escalated", "Escalated (8+ days)"], ["all", "All open"]];
+const BUCKET_TONE: Record<string, string> = { not_sent: "bad", past_limit: "bad", overdue: "bad", due_soon: "warn", on_track: "good" };
 const AGE_CHIPS: [keyof PoPersonStat & string, string, string][] = [
   ["on_track", "on_track", "0–4 days"], ["due_soon", "due_soon", "5–7 days"], ["overdue", "overdue", "8–10 days"],
-  ["past_limit", "past_limit", "11+ days"],
+  ["past_limit", "past_limit", "11+ days"], ["not_sent", "not_sent", "PO not sent"],
 ];
 
 
@@ -33,6 +34,23 @@ function PersonList({ role, name, window, range, bucket, order, focus, boxLabel 
   return (
     <div className={q.isPlaceholderData ? "updating" : undefined}>
       {who.data?.enabled && <SendPanel cause="payment" group={`${role}:${name}`} noun="PO" names={[d.name]} testMode={!!who.data.test_mode} startScope={startScope} scopes={scopes} />}
+      {role === "crm" && d.progress.total > 0 && (
+        <div className="po-progress" aria-label="Today's calls">
+          <div className="po-bar"><span style={{ width: `${Math.round((d.progress.done / d.progress.total) * 100)}%` }} /></div>
+          <b className="num">{d.progress.done} of {d.progress.total}</b> done today
+          {d.call_clients.length > 0 && <> · <b className="num">{d.call_clients.length}</b> client{d.call_clients.length === 1 ? "" : "s"} to call (one call covers all of a client's POs)</>}
+        </div>
+      )}
+      {role === "crm" && d.call_clients.length > 0 && (
+        <details className="po-more">
+          <summary>Call list by client ({d.call_clients.length})</summary>
+          <ul className="po-clients">
+            {d.call_clients.map((c) => (
+              <li key={c.client}><b>{c.client}</b> <span className="num">{inrShort(c.amount)}</span> · {c.pos} PO{c.pos === 1 ? "" : "s"} ({c.so.join(", ")}) · oldest day {c.day}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {!d.table.rows.length ? (
         <Empty title="Nothing here">No POs match this filter for {d.name}.</Empty>
       ) : (
@@ -49,9 +67,11 @@ function PersonList({ role, name, window, range, bucket, order, focus, boxLabel 
                   <span className="po-so">{String(r[ix("PO")])}</span>
                   <span className="po-amt num">{inrShort(Number(r[ix("Amount ₹")]))}</span>
                   <span className={`po-day tone-${tone}`}>Day {String(r[ix("Day")])}</span>
+                  <span className={`po-timer tone-${tone}`}>{String(r[ix("Timer")])}</span>
+                  {String(r[ix("Level")] ?? "") && <span className={`po-level lv-${String(r[ix("Level")])}`}>{String(r[ix("Level")])}</span>}
                 </div>
                 <div className="po-last">
-                  Called <b>{String(r[ix("Calls")] ?? 0)}×</b> · last follow-up: <b>{String(r[ix("Last follow-up")])}</b>{last ? <> · “{last}”</> : " · never followed up"}
+                  Follow-ups: <b>{String(r[ix("Calls")] ?? 0)}</b> · next is <b>#{String(r[ix("Next")] ?? "").replace("#", "")}</b>{Number(r[ix("Missed")] ?? 0) > 0 && <span className="po-missed"> · {String(r[ix("Missed")])} daily call{Number(r[ix("Missed")]) === 1 ? "" : "s"} missed</span>} · last follow-up: <b>{String(r[ix("Last follow-up")])}</b>{last ? <> · “{last}”</> : " · never followed up"}
                   {String(r[ix("Promised")] ?? "") && <> · client promised <b>{String(r[ix("Promised")])}</b></>}
                   {Number(r[ix("Part paid ₹")] ?? 0) > 0 && <> · part paid <b>{inrShort(Number(r[ix("Part paid ₹")]))}</b> (on hold)</>}
                 </div>
@@ -110,10 +130,30 @@ function PersonReport({ role, name, window }: { role: Role; name: string; window
           <div className="po-rep-row"><span>POs sent</span><b className="num">{r.recent.sent}</b><em className="num">{inrShort(r.recent.sent_amount)}</em></div>
           <div className="po-rep-row"><span>Paid</span><b className="num">{r.recent.paid}</b><em className="num">{inrShort(r.recent.paid_amount)} · {r.recent.paid_pct}%</em></div>
           <h4>Follow-up</h4>
-          <div className="po-rep-row"><span>Not followed up (2+ days)</span><b className="num">{r.followup.not_followed_up}</b><em /></div>
+          <div className="po-rep-row"><span>Follow-up due today</span><b className="num">{r.followup.not_followed_up}</b><em /></div>
           <div className="po-rep-row"><span>Never called</span><b className="num">{r.followup.never_called}</b><em /></div>
-          <div className="po-rep-row"><span>Calls per open PO</span><b className="num">{r.followup.avg_calls}</b><em /></div>
+          <div className="po-rep-row"><span>Average calls per client (all POs)</span><b className="num">{r.followup.calls_per_client}</b><em>{r.followup.calls_per_po} per PO</em></div>
+          <div className="po-rep-row"><span>Follow-ups per open PO</span><b className="num">{r.followup.avg_calls}</b><em /></div>
           {r.followup.on_hold > 0 && <div className="po-rep-row"><span>On hold (part payment)</span><b className="num">{r.followup.on_hold}</b><em /></div>}
+        </section>
+      </div>
+      <div className="po-rep-grid">
+        <section>
+          <h4>Cancellations</h4>
+          <div className={`po-rep-row${r.cancellations.count ? " bad" : ""}`}><span>Cancelled POs</span><b className="num">{r.cancellations.count}</b><em className="num">{inrShort(r.cancellations.amount)} · {r.cancellations.rate_pct}% of {r.cancellations.pos}</em></div>
+          <div className={`po-rep-row${r.cancellations.at_risk.count ? " bad" : ""}`}><span>At risk (11+ days, unpaid)</span><b className="num">{r.cancellations.at_risk.count}</b><em className="num">{inrShort(r.cancellations.at_risk.amount)}</em></div>
+          {r.cancellations.recent.map((c) => (
+            <div key={c.so} className="po-rep-row wide"><span><b>{c.client}</b> <i className="po-so">{c.so}</i></span><b className="num">{inrShort(c.amount)}</b><em>made {c.made}{c.note ? ` · “${c.note}”` : ""}</em></div>
+          ))}
+        </section>
+        <section>
+          <h4>Daily follow-up discipline</h4>
+          <div className={`po-rep-row${r.discipline.compliance_pct < 80 ? " bad" : ""}`}><span>Daily calls made</span><b className="num">{r.discipline.compliance_pct}%</b><em className="num">{r.discipline.done} of {r.discipline.expected}</em></div>
+          <div className="po-rep-row"><span>Missed days</span><b className="num">{r.discipline.missed}</b><em>Sundays not counted</em></div>
+          <div className="po-rep-row"><span>Escalated: 5–7 · 8–10 · 11+ days</span><b className="num">{r.discipline.escalated.l1} · {r.discipline.escalated.l2} · {r.discipline.escalated.l3}</b><em /></div>
+          {r.discipline.worst.map((w) => (
+            <div key={w.so} className="po-rep-row wide"><span><b>{w.client}</b> <i className="po-so">{w.so}</i></span><b className="num">{w.missed} missed</b><em>of {w.expected} daily calls{w.state !== "pending" ? ` · ${w.state}` : ""}</em></div>
+          ))}
         </section>
       </div>
       {r.worst.length > 0 && (
@@ -165,7 +205,7 @@ function People({ role, people, window, range, bucket, order, boxLabel, first }:
                   <>
                     <span className="po-stat"><b className="num">{p.todo}</b> to call today</span>
                     {AGE_CHIPS.map(([k, b, label]) => (
-                      <button key={b} type="button" className={`po-stat link${(b === "past_limit" || b === "overdue") && p[k] ? " bad" : ""}`} disabled={!p[k]} aria-pressed={isOpen && open?.box === b} onClick={() => toggle(p.name, "", b)}>
+                      <button key={b} type="button" className={`po-stat link${(b === "past_limit" || b === "overdue" || b === "not_sent") && p[k] ? " bad" : ""}`} disabled={!p[k]} aria-pressed={isOpen && open?.box === b} onClick={() => toggle(p.name, "", b)}>
                         <b className="num">{p[k] as number}</b> {label}
                       </button>
                     ))}
@@ -174,8 +214,10 @@ function People({ role, people, window, range, bucket, order, boxLabel, first }:
                   <span className="po-stat"><b className="num">{p.open}</b> open · {inrShort(p.open_amt)}</span>
                 )}
                 <button type="button" className={`po-stat link${p.stale ? " bad" : ""}`} disabled={!p.stale} aria-pressed={isOpen && open?.focus === "stale" && !open?.box} onClick={() => toggle(p.name, "stale")}>
-                  <b className="num">{p.stale}</b> not followed up
+                  <b className="num">{p.stale}</b> follow-up due
                 </button>
+                <span className={`po-stat${p.compliance < 80 ? " bad" : ""}`} title="Daily calls made in the first 7 days, Sundays skipped"><b className="num">{Math.round(p.compliance)}%</b> daily calls made{p.fu_missed ? ` (${p.fu_missed} missed)` : ""}</span>
+                {role === "sp" && <span className={`po-stat${p.cancelled ? " bad" : ""}`}><b className="num">{p.cancel_pct.toFixed(1)}%</b> cancelled ({p.cancelled} POs · {inrShort(p.cancelled_amt)})</span>}
                 {role === "sp" && <span className={`po-stat${risk ? " bad" : ""}`}><b className="num">{risk}</b> at risk (11+ days)</span>}
                 {role === "sp" && <span className="po-stat"><b className="num">{Math.round(p.paid_pct)}%</b> paid</span>}
                 <button type="button" className="fbtn po-rep-btn" aria-pressed={rep === p.name} onClick={() => setRep(rep === p.name ? null : p.name)}>
@@ -194,6 +236,48 @@ function People({ role, people, window, range, bucket, order, boxLabel, first }:
       })}
     </div>
   );
+}
+
+/** Every employee side by side: one table to compare, print or copy. */
+function TeamReport({ people, role }: { people: PoPersonStat[]; role: Role }) {
+  const [copied, setCopied] = useState(false);
+  const text = people.map((p) => `${p.name}: open ${p.open} (${inrShort(p.open_amt)}), 8+ days ${p.overdue + p.past_limit}, cancelled ${p.cancelled} (${p.cancel_pct.toFixed(1)}%), avg calls per client ${p.calls_per_client.toFixed(1)}, daily calls ${Math.round(p.compliance)}%, paid ${Math.round(p.paid_pct)}%`).join("\n");
+  return (
+    <details className="po-more">
+      <summary>Team report: all {role === "crm" ? "callers" : "sales people"} side by side</summary>
+      <div className="po-rep-head">
+        <span />
+        <span className="po-rep-actions">
+          <button type="button" className="fbtn" onClick={async () => { try { await navigator.clipboard.writeText(text); setCopied(true); } catch { setCopied(false); } }}><span className="k">{copied ? "Copied" : "Copy"}</span></button>
+          <button type="button" className="fbtn" onClick={() => globalThis.print()}><span className="k">Print</span></button>
+        </span>
+      </div>
+      <table className="po-team-table">
+        <thead><tr><th>Name</th><th>Open</th><th>Open ₹</th><th>8+ days</th><th>Cancelled</th><th>Cancel rate</th><th>Avg calls / client</th><th>Daily calls made</th><th>Missed days</th><th>Paid %</th></tr></thead>
+        <tbody>
+          {people.map((p) => (
+            <tr key={p.name}>
+              <td><b>{p.name}</b></td><td className="num">{p.open}</td><td className="num">{inrShort(p.open_amt)}</td>
+              <td className={`num${p.overdue + p.past_limit ? " bad" : ""}`}>{p.overdue + p.past_limit}</td>
+              <td className="num">{p.cancelled} · {inrShort(p.cancelled_amt)}</td><td className={`num${p.cancel_pct >= 10 ? " bad" : ""}`}>{p.cancel_pct.toFixed(1)}%</td><td className="num">{p.calls_per_client.toFixed(1)}</td>
+              <td className={`num${p.compliance < 80 ? " bad" : ""}`}>{Math.round(p.compliance)}%</td>
+              <td className="num">{p.fu_missed}</td><td className="num">{Math.round(p.paid_pct)}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
+  );
+}
+
+/** "Message everyone" when WhatsApp sending is set up; otherwise a short note on how to switch it on. */
+function MessageAll({ startRole }: { startRole: Role }) {
+  const who = useNudgeWho();
+  if (!who.data) return null;
+  if (!who.data.enabled) {
+    return <span className="send-off" title="Add NUDGE_SHEET_ID to backend/.env and restart">Messages are off: NUDGE_SHEET_ID is not set{who.data.error ? ` (${who.data.error})` : ""}</span>;
+  }
+  return <SendAll testMode={!!who.data.test_mode} startRole={startRole} />;
 }
 
 const KEYS = ["owner", "sales_person", "window", "view", "range", "bucket", "order"];
@@ -218,7 +302,7 @@ export default function Payments() {
             <>
               <PageHead title="PO follow-up" lede={`Payment is due ${d.rules.due_days} days after the PO goes to the client, ${d.rules.limit_days} at most.`} meta={d.meta} />
               <Notices items={d.notices.filter((n) => n.kind !== "info")} />
-              <Panel title="How long POs have waited" sub={`${d.buckets.reduce((n, b) => n + b.count, 0)} open POs. Click a box to see only those.${paid ? ` Paid today: ${paid.value} (${paid.hint}).` : ""}`}>
+              <Panel title="How long POs have waited" sub={`${d.buckets.filter((b) => b.key !== "not_sent").reduce((n, b) => n + b.count, 0)} open POs. Click a box to see only those.${paid ? ` Paid today: ${paid.value} (${paid.hint}).` : ""}`}>
                 <div className="po-buckets">
                   {d.buckets.map((b) => (
                     <button key={b.key} type="button" className={`po-bucket tone-${BUCKET_TONE[b.key]}${bucket === b.key ? " is-set" : ""}`} aria-pressed={bucket === b.key} onClick={() => set("bucket", bucket === b.key ? [] : [b.key])}>
@@ -251,12 +335,14 @@ export default function Payments() {
                 sub={view === "crm" ? "Click a name for their POs. Click “not followed up” to see exactly those POs and their last note." : "Click a name for their POs. Click “not followed up” to see exactly those POs and their last note."}
                 right={
                   <div className="cause-periods" style={{ padding: 0 }} role="group" aria-label="Who">
+                    <MessageAll startRole={view} />
                     <button type="button" className={`fbtn${view === "crm" ? " is-set" : ""}`} aria-pressed={view === "crm"} onClick={() => set("view", [])}><span className="k">Calling team</span></button>
                     <button type="button" className={`fbtn${view === "sp" ? " is-set" : ""}`} aria-pressed={view === "sp"} onClick={() => set("view", ["sp"])}><span className="k">Sales people</span></button>
                     <button type="button" className="fbtn" onClick={() => set("order", order === "oldest" ? ["newest"] : [])}><span className="k">{order === "oldest" ? "Oldest first ↑" : "Newest first ↓"}</span></button>
                   </div>
                 }
               >
+                {d.people[view].length > 0 && <TeamReport people={d.people[view]} role={view} />}
                 {d.people[view].length ? (
                   <People key={`${view}-${window}-${range}-${bucket}-${link ?? ""}`} role={view} people={d.people[view]} window={window} range={range} bucket={bucket} order={order} boxLabel={boxLabel} first={link ? d.people[view].find((p) => p.name.toLowerCase() === link.toLowerCase())?.name : undefined} />
                 ) : (

@@ -247,7 +247,15 @@ export interface PoPersonStat {
   past_limit_amt: number; not_sent: number; paid: number; paid_amt: number; paid_pct: number; cancelled: number;
   cancelled_amt: number; days_to_pay: number | null; todo: number; done_today: number; paid_today_amt: number;
   never: number; fix: number; stale: number;
+  l1: number; l2: number; l3: number; at_risk: number; at_risk_amt: number; cancel_pct: number;
+  fu_expected: number; fu_done: number; fu_missed: number; compliance: number;
+  calls_per_client: number; calls_per_po: number;
 }
+export interface PoEscalationRow {
+  client: string; so: string; amount: number; day: number; level: "L2" | "L3"; timer: string; owner: string;
+  sales_person: string; calls: number; missed: number; note: string; held: boolean;
+}
+export interface PoEscalation { levels: PoBucket[]; rows: PoEscalationRow[]; total: number }
 export interface PoOverview extends Envelope {
   title: string;
   kpis: Kpi[];
@@ -255,6 +263,8 @@ export interface PoOverview extends Envelope {
   callers: TableData;
   sales: TableData;
   people: { crm: PoPersonStat[]; sp: PoPersonStat[] };
+  escalation: PoEscalation;
+  not_sent: { count: number; amount: number; rows: { client: string; so: string; amount: number; day: number; owner: string; sales_person: string; made: string }[] };
   window: { key: string; label: string; start: string; rows: number; log_rows: number; older_open: number };
   period: string;
   bucket: string;
@@ -272,6 +282,8 @@ export interface PoPerson extends Envelope {
   table: TableData & { states: string[]; done: boolean[] };
   count: number;
   todo: number;
+  progress: { done: number; total: number };
+  call_clients: { client: string; pos: number; so: string[]; amount: number; phone: string; day: number }[];
 }
 
 export interface PoReport extends Envelope {
@@ -281,10 +293,40 @@ export interface PoReport extends Envelope {
   days_to_pay: number | null;
   recent: { sent: number; sent_amount: number; paid: number; paid_amount: number; paid_pct: number };
   ages: { key: string; label: string; count: number; amount: number }[];
-  followup: { not_followed_up: number; never_called: number; status_not_updated: number; avg_calls: number; on_hold: number };
+  followup: { not_followed_up: number; never_called: number; status_not_updated: number; avg_calls: number; calls_per_client: number; calls_per_po: number; on_hold: number };
   worst: { client: string; so: string; amount: number; day: number; calls: number; note: string }[];
   clients: { client: string; open: number; amount: number; oldest: number }[];
   split: { name: string; open: number; amount: number; stale: number; late: number }[];
   split_label: string;
+  cancellations: {
+    count: number; amount: number; rate_pct: number; pos: number; at_risk: { count: number; amount: number };
+    recent: { client: string; so: string; amount: number; made: string; note: string }[];
+  };
+  discipline: {
+    expected: number; done: number; missed: number; compliance_pct: number; escalated: { l1: number; l2: number; l3: number };
+    worst: { client: string; so: string; missed: number; expected: number; state: string }[];
+  };
   summary: string;
+}
+
+export interface NudgeAllItem { name: string; group: string; count: number; ready: boolean; message: string; already_sent_minutes: number | null }
+export interface NudgeAllPreview { items: NudgeAllItem[]; ready: number; missing: string[]; test_mode: boolean }
+export interface NudgeAllResult { sent: string[]; skipped_recent: string[]; missing: string[]; sent_at: string; test_mode: boolean }
+
+export interface ReturnsData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  notices: Notice[];
+  policy_days: number;
+  box: string;
+  windows: { key: string; label: string }[];
+  window: { key?: string; label?: string; start?: string; rows?: number; log_rows?: number };
+  boxes: { key: string; label: string; count: number; pcs: number; amount: number }[];
+  reasons: { reason: string; pcs: number }[];
+  pending: TableData;
+  pending_total?: number;
+  months: TableData;
+  clients: TableData;
+  policy: TableData;
+  ratios?: { pass_pct: number; fail_pct: number; called_pct: number; policy_pct: number };
 }

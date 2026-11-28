@@ -53,11 +53,18 @@ PAY_COLS = [
 
 DUE_DAYS = 7             # cash orders: payment is due this many days after the PO is sent to the client
 LIMIT_DAYS = 10          # the longest a PO may wait; after this it is "past the limit" (likely to be cancelled)
+DAILY_DAYS = 7           # CRM rule: a follow-up every day (Sundays skipped) for the first 7 days, until payment is received
+ESC_LEVELS = [("L3", 11, "11+ days: cancel or collect, decision with Kavita"), ("L2", 8, "8–10 days: sales person and Kavita told"),
+              ("L1", 5, "5–7 days: caller reminds the client")]
+PURE_SHARE = re.compile(r"\d*\s*PO\s*(SHARE|SHARED|SEND|SENT)(\s+TO\s+\w+)?", re.I)   # a note that only says the PO was sent
 PO_SHARE = re.compile(r"\bPO\s*(SHARE|SHARED|SEND|SENT)\b", re.I)    # a note like "po shared" = the PO went to the client
 CHANGE_NOTE = re.compile(r"\b(ADD\s*MORE|REMOVE|ARTI[CK]LE?S?|ARTICAL|GR\s*RAISE)\b", re.I)   # order change, not a payment chase
 BUCKETS = [("past_limit", f"{LIMIT_DAYS + 1}+ days: at risk of cancellation"), ("overdue", f"{DUE_DAYS + 1}–{LIMIT_DAYS} days: overdue"),
            ("due_soon", f"5–{DUE_DAYS} days: due soon"), ("on_track", "0–4 days: on track")]
 BUCKET_KEYS = [k for k, _ in BUCKETS]
+NOT_SENT = "not_sent"          # a box of its own: POs made but not yet sent to the client (any age)
+NOT_SENT_LABEL = "PO not sent: made, not yet sent to the client"
+FILTER_KEYS = BUCKET_KEYS + [NOT_SENT]
 # Same age bands as the Orders page (days since the PO went to the client; today = day 0).
 PERIODS = {"today": (0, 0), "week": (1, 7), "month": (8, 30), "older": (31, None)}
 PERIOD_LABELS = [("today", "Today"), ("week", "Yesterday – 7 days"), ("month", "8 – 30 days"), ("older", "Older than 30 days")]
@@ -111,6 +118,54 @@ def parse_note(cell: str):
     return (text, ts)
 
 
+_PROMISE_DATE = re.compile(r"\b(\d{1,2})\s*[/-]\s*(\d{1,2})(?:\s*[/-]\s*(\d{2,4}))?\b")
+_PROMISE_DAYS = re.compile(r"\b(\d{1,2})\s*(?:din|days?)\b", re.I)
+
+
+def promise_in_note(text: str, ts):
+    """'kal payment karenge' written on 18 Nov -> 19 Nov. Reads aaj / kal / parso / N din / a date. NaT if none."""
+    if pd.isna(ts):
+        return pd.NaT
+    t = str(text or "").lower()
+    base = ts.normalize()
+    found = []
+    if re.search(r"\b(aaj|today)\b", t):
+        found.append(base)
+    if re.search(r"\b(kal|tomorrow|tmrw)\b", t):
+        found.append(base + pd.Timedelta(days=1))
+    if re.search(r"\b(parso|parson|day after)\b", t):
+        found.append(base + pd.Timedelta(days=2))
+    for m in _PROMISE_DAYS.finditer(t):
+        n = int(m.group(1))
+        if 1 <= n <= 15:
+            found.append(base + pd.Timedelta(days=n))
+    for m in _PROMISE_DATE.finditer(t):
+        dd, mm = int(m.group(1)), int(m.group(2))
+        yy = int(m.group(3)) if m.group(3) else base.year
+        yy = yy + 2000 if yy < 100 else yy
+        try:
+            dt = pd.Timestamp(year=yy, month=mm, day=dd)
+        except ValueError:
+            continue
+        if base <= dt <= base + pd.Timedelta(days=30):
+            found.append(dt)
+    return max(found) if found else pd.NaT
+
+
+def follow_up_days(created, end) -> list:
+    """The days a follow-up was due: day 1..7 after the PO was made, Sundays skipped, up to and including `end`."""
+    if pd.isna(created) or pd.isna(end):
+        return []
+    out = []
+    for k in range(1, DAILY_DAYS + 1):
+        day = created.normalize() + pd.Timedelta(days=k)
+        if day > end:
+            break
+        if day.dayofweek != 6:
+            out.append(day)
+    return out
+
+
 def _amount(v) -> float:
     s = re.sub(r"[^\d.]", "", str(v or ""))
     try:
@@ -152,8 +207,12 @@ def parse_payments(grid, tab: str = TAB, today=None) -> dict:
 
     d["real_notes"] = d["notes"].map(touches)
     d["follow_ups"] = d["real_notes"].map(len)
-    d["calls"] = d["real_notes"].map(lambda ns: sum(1 for t, _ in ns if not PO_SHARE.search(t)))   # chase calls, not "po shared"
-    d["last_touch"] = d["real_notes"].map(lambda ns: max((ts for _, ts in ns), default=pd.NaT))
+    # every note except one that only says "po shared" and except bulk pastes (undated notes count as calls)
+    d["calls"] = d["notes"].map(lambda ns: sum(1 for t, ts in ns if not PURE_SHARE.fullmatch(t.strip())
+                                                and not (pd.notna(ts) and (norm_key(t), ts) in bulk)))
+    d["chase_notes"] = d["real_notes"].map(lambda ns: [(t, ts) for t, ts in ns if not PURE_SHARE.fullmatch(t.strip())])
+    d["call_days"] = d["chase_notes"].map(lambda ns: sorted({ts.normalize() for _, ts in ns}))
+    d["last_touch"] = d["chase_notes"].map(lambda ns: max((ts for _, ts in ns), default=pd.NaT))
     d["last_note"] = d["real_notes"].map(lambda ns: max(ns, key=lambda n: n[1])[0] if ns else "")
     d["paid_at"] = d["real_notes"].map(
         lambda ns: min((ts for t, ts in ns if PAID_NOTE.search(t)), default=pd.NaT))
@@ -163,6 +222,10 @@ def parse_payments(grid, tab: str = TAB, today=None) -> dict:
     d.loc[st.map(lambda s: any(w in s for w in RECEIVED_WORDS)), "state"] = "received"
     d["amount_n"] = d["amount"].map(_amount)
     d["promised"] = parse_dates(d["promised"]) if "promised" in d else pd.NaT
+    # no PROMISED DATE column filled in: read the promise from the caller's own note ("kal", "parso", "25/11"...)
+    said = d["chase_notes"].map(lambda ns: next((x for x in (promise_in_note(t, ts) for t, ts in sorted(ns, key=lambda n: n[1], reverse=True)) if pd.notna(x)), pd.NaT))
+    d["promise_from_note"] = d["promised"].isna() & said.notna()
+    d["promised"] = d["promised"].where(d["promised"].notna(), said)
     d["part_paid_n"] = d["part_paid"].map(_amount) if "part_paid" in d else 0.0
     d["held"] = (d["state"] == "pending") & (d["part_paid_n"] > 0)     # partial payment received: hold, do not cancel
     owner = d["owner"].str.strip().str.title()
@@ -173,7 +236,10 @@ def parse_payments(grid, tab: str = TAB, today=None) -> dict:
     d["days_since_touch"] = (today.normalize() - since.dt.normalize()).dt.days.fillna(0).clip(lower=0).astype(int)
     # notes say "payment done" but PAYMENT STATUS was never set: not a follow-up problem, a sheet-update problem
     d["status_not_updated"] = (d["state"] == "pending") & d["paid_at"].notna()
-    d["stale"] = (d["state"] == "pending") & ~d["status_not_updated"] & (d["days_since_touch"] >= FOLLOWUP_DAYS)
+    d["days_out"] = (today.normalize() - d["created"].dt.normalize()).dt.days.fillna(0).clip(lower=0).astype(int)
+    # CRM rule: a call every day for the first 7 days; after that every other day
+    need_gap = d["days_out"].map(lambda n: 1 if n <= DAILY_DAYS else FOLLOWUP_DAYS)
+    d["stale"] = (d["state"] == "pending") & ~d["status_not_updated"] & (d["days_since_touch"] >= need_gap)
     d["collect_days"] = (d["paid_at"].dt.normalize() - d["created"].dt.normalize()).dt.days.where(
         d["state"] == "received")
     d["month"] = month_label(d["created"])
@@ -181,8 +247,8 @@ def parse_payments(grid, tab: str = TAB, today=None) -> dict:
     d["po_shared_at"] = d["real_notes"].map(
         lambda ns: min((ts for t, ts in ns if PO_SHARE.search(t)), default=pd.NaT))
     d["po_sent"] = d["po_send"].str.upper().str.contains("YES") | d["po_shared_at"].notna()
-    d["clock_start"] = d["po_shared_at"].where(d["po_shared_at"].notna(), d["created"])
-    d["days_out"] = (today.normalize() - d["clock_start"].dt.normalize()).dt.days.fillna(0).clip(lower=0).astype(int)
+    d["clock_start"] = d["created"]                      # the clock runs from the day the PO was made (order date)
+    d["sent_after"] = (d["po_shared_at"].dt.normalize() - d["created"].dt.normalize()).dt.days   # days the PO waited to be sent
     pend = d["state"] == "pending"
     d["period"] = d["days_out"].map(lambda n: "today" if n == 0 else "week" if n <= 7 else "month" if n <= 30 else "older")
 
@@ -193,6 +259,19 @@ def parse_payments(grid, tab: str = TAB, today=None) -> dict:
         n = r["days_out"]
         return "on_track" if n <= 4 else "due_soon" if n <= DUE_DAYS else "overdue" if n <= LIMIT_DAYS else "past_limit"
     d["bucket"] = d.apply(bucket, axis=1) if len(d) else pd.Series(dtype=str)
+    d["esc"] = d["days_out"].map(lambda n: next((k for k, lo, _ in ESC_LEVELS if n >= lo), "")).where(pend & ~d["status_not_updated"], "")   # notes say paid: a sheet fix, not an escalation
+    has_send_col = (d["po_send"].str.strip() != "").any()
+    d["not_sent"] = pend & has_send_col & ~d["po_sent"]       # made, but not sent to the client yet
+    d["due_in"] = DUE_DAYS - d["days_out"]               # days left to the 7-day due date (negative = overdue by)
+    d["limit_in"] = LIMIT_DAYS - d["days_out"]           # days left to the 10-day limit
+    yesterday = today.normalize() - pd.Timedelta(days=1)
+    close_day = d["paid_at"].where(d["paid_at"].notna(), d["last_touch"]).where(d["state"] != "pending", pd.NaT)
+    end = close_day.dt.normalize().sub(pd.Timedelta(days=1)).where(d["state"] != "pending", yesterday)
+    due_days = [follow_up_days(c, e if pd.notna(e) else c + pd.Timedelta(days=DAILY_DAYS)) for c, e in zip(d["created"], end)]
+    d["fu_expected"] = [len(x) for x in due_days]
+    d["fu_done"] = [sum(1 for day in x if day in set(cd)) for x, cd in zip(due_days, d["call_days"])]
+    d["fu_missed"] = d["fu_expected"] - d["fu_done"]
+    d["fu_next"] = d["call_days"].map(len) + 1                      # follow-up number the caller is on next
     d["done_today"] = pend & (d["last_touch"].dt.normalize() == today.normalize())
     # paid today = a "payment done" note stamped today, or paid together with an order made today
     d["paid_today"] = (d["state"] == "received") & (
@@ -342,11 +421,23 @@ def _day_word(n: int) -> str:
     return "today" if n == 0 else f"day {n}"
 
 
+def timer_text(r) -> str:
+    """The PO's running clock: how long it has run and how long is left to the 7-day due date and the 10-day limit."""
+    n = int(r["days_out"])
+    if n <= DUE_DAYS:
+        left = DUE_DAYS - n
+        return "due today" if left == 0 else f"due in {left}d"
+    if n <= LIMIT_DAYS:
+        return f"overdue {n - DUE_DAYS}d · limit in {LIMIT_DAYS - n}d" if n < LIMIT_DAYS else f"overdue {n - DUE_DAYS}d · limit today"
+    return f"past limit {n - LIMIT_DAYS}d"
+
+
 def action_text(r) -> str:
     """What the person should do about one open PO — one short sentence."""
     if r["status_not_updated"]:
         return "Note says paid — set PAYMENT STATUS to RECIEVED"
     n, b = int(r["days_out"]), r["bucket"]
+    miss = f" · missed {int(r['fu_missed'])} daily call{'s' if r['fu_missed'] != 1 else ''}" if r.get("fu_missed", 0) > 0 else ""
     if r.get("promise_broken"):
         return f"Day {n}, client promised {r['promised']:%d %b} and has not paid — call now"
     if r.get("promise_kept_wait"):
@@ -356,17 +447,17 @@ def action_text(r) -> str:
     if b == "not_sent":
         return "PO not sent yet — send the PO to the client"
     if b == "past_limit":
-        return f"Day {n}, past the {LIMIT_DAYS}-day limit — get the payment or confirm the cancel today"
+        return f"Day {n}, past the {LIMIT_DAYS}-day limit — get the payment or confirm the cancel with Kavita today{miss}"
     if b == "overdue":
-        return f"Day {n}, overdue — ask the client for a payment date"
+        return f"Day {n}, overdue — ask the client for a payment date; {r['sales_person']} and Kavita are told{miss}"
     if b == "due_soon":
         left = DUE_DAYS - n
         due = "payment due today" if left == 0 else f"payment due in {left} day{'s' if left != 1 else ''}"
-        return f"Day {n}, {due} — call and remind"
-    if r["follow_ups"] == 0:
-        return f"PO sent {n} day{'s' if n != 1 else ''} ago — first follow-up call"
+        return f"Day {n}, {due} — call and remind{miss}"
+    if r["calls"] == 0:
+        return f"PO made {n} day{'s' if n != 1 else ''} ago — follow-up 1 is due"
     if r["stale"]:
-        return f"Day {n}, not followed up for {int(r['days_since_touch'])} days — call"
+        return f"Day {n}, follow-up {int(r['fu_next'])} is due (last call {int(r['days_since_touch'])}d ago){miss}"
     return f"Day {n}, on track"
 
 
@@ -381,7 +472,7 @@ def _stats(g: pd.DataFrame) -> dict:
         "due_soon": int((p["bucket"] == "due_soon").sum()), "overdue": int((p["bucket"] == "overdue").sum()),
         "past_limit": int((p["bucket"] == "past_limit").sum()),
         "past_limit_amt": float(p.loc[p["bucket"] == "past_limit", "amount_n"].sum()),
-        "not_sent": int((p["bucket"] == "not_sent").sum()),
+        "not_sent": int(p["not_sent"].sum()), "not_sent_amt": float(p.loc[p["not_sent"], "amount_n"].sum()),
         "paid": len(rec), "paid_amt": float(rec["amount_n"].sum()),
         "paid_pct": float(rec["amount_n"].sum() / total * 100) if total else 0.0,
         "cancelled": len(can), "cancelled_amt": float(can["amount_n"].sum()),
@@ -391,6 +482,14 @@ def _stats(g: pd.DataFrame) -> dict:
         "never": int(((g["state"] == "pending") & (g["follow_ups"] == 0)).sum()),
         "fix": int(g["status_not_updated"].sum()),
         "stale": int(g["stale"].sum()),
+        "l1": int((p["esc"] == "L1").sum()), "l2": int((p["esc"] == "L2").sum()), "l3": int((p["esc"] == "L3").sum()),
+        "at_risk": int(((p["bucket"] == "past_limit") & ~p["held"]).sum()),
+        "at_risk_amt": float(p.loc[(p["bucket"] == "past_limit") & ~p["held"], "amount_n"].sum()),
+        "cancel_pct": float(len(can) / len(g) * 100) if len(g) else 0.0,
+        "calls_per_client": float(g["calls"].sum() / g["client"].nunique()) if len(g) else 0.0,
+        "calls_per_po": float(g["calls"].mean()) if len(g) else 0.0,
+        "fu_expected": int(g["fu_expected"].sum()), "fu_done": int(g["fu_done"].sum()), "fu_missed": int(g["fu_missed"].sum()),
+        "compliance": float(g["fu_done"].sum() / g["fu_expected"].sum() * 100) if g["fu_expected"].sum() else 100.0,
     }
 
 
@@ -413,9 +512,10 @@ def scope_period(d: pd.DataFrame, period: str) -> pd.DataFrame:
 
 def scope_bucket(d: pd.DataFrame, bucket: str) -> pd.DataFrame:
     """Keep every paid / cancelled PO, but only the open POs in one waiting-time box."""
-    if bucket not in BUCKET_KEYS or d.empty:
+    if bucket not in FILTER_KEYS or d.empty:
         return d
-    return d[(d["state"] != "pending") | (d["bucket"] == bucket)]
+    hit = d["not_sent"] if bucket == NOT_SENT else (d["bucket"] == bucket)
+    return d[(d["state"] != "pending") | hit]
 
 
 def scope_focus(d: pd.DataFrame, focus: str) -> pd.DataFrame:
@@ -442,13 +542,14 @@ def po_overview(data, today=None, period: str = "", bucket: str = "") -> dict:
     win = data.get("window", {})
     base = {"title": "PO follow-up", "notices": data.get("issues", []), "window": win, "rules": {
         "due_days": DUE_DAYS, "limit_days": LIMIT_DAYS}, "period": period if period in PERIODS else "",
-        "bucket": bucket if bucket in BUCKET_KEYS else "", "periods": periods_summary(d)}
+        "bucket": bucket if bucket in FILTER_KEYS else "", "periods": periods_summary(d)}
     d = scope_period(d, period)
     boxes = d                                    # the boxes stay visible when one is chosen
     d = scope_bucket(d, bucket)
     if d.empty:
         return base | {"kpis": [], "buckets": [], "callers": table(pd.DataFrame()), "sales": table(pd.DataFrame()),
-                       "people": {"crm": [], "sp": []}}
+                       "people": {"crm": [], "sp": []}, "escalation": {"levels": [], "rows": [], "total": 0},
+                       "not_sent": {"count": 0, "amount": 0.0, "rows": []}}
     pend = d[d["state"] == "pending"]
     late = pend[pend["bucket"].isin(["overdue", "past_limit"])]
     soon = pend[pend["bucket"] == "due_soon"]
@@ -464,8 +565,26 @@ def po_overview(data, today=None, period: str = "", bucket: str = "") -> dict:
     bp = boxes[boxes["state"] == "pending"]
     buckets = [{"key": k, "label": lab, "count": int((bp["bucket"] == k).sum()),
                 "amount": float(bp.loc[bp["bucket"] == k, "amount_n"].sum())} for k, lab in BUCKETS]
+    buckets.append({"key": NOT_SENT, "label": NOT_SENT_LABEL, "count": int(bp["not_sent"].sum()),
+                    "amount": float(bp.loc[bp["not_sent"], "amount_n"].sum())})
     people = {r: _people(d, r) for r in ROLES}
-    if bucket in BUCKET_KEYS:                    # only people who have POs in this box
+    esc_rows = boxes[(boxes["state"] == "pending") & boxes["esc"].isin(["L2", "L3"])].sort_values(
+        ["esc", "days_out", "amount_n"], ascending=[False, False, False])
+    ns = boxes[boxes["state"].eq("pending") & boxes["not_sent"]].sort_values(["days_out", "amount_n"], ascending=False)
+    not_sent = {"count": int(len(ns)), "amount": float(ns["amount_n"].sum()),
+                "rows": [{"client": r["client"], "so": r["so"], "amount": float(r["amount_n"]), "day": int(r["days_out"]),
+                          "owner": r["owner"], "sales_person": r["sales_person"], "made": f"{r['created']:%d %b}" if pd.notna(r["created"]) else ""}
+                         for _, r in ns.head(100).iterrows()]}
+    escalation = {
+        "levels": [{"key": k, "label": lab, "count": int((bp["esc"] == k).sum()),
+                    "amount": float(bp.loc[bp["esc"] == k, "amount_n"].sum())} for k, _lo, lab in reversed(ESC_LEVELS)],
+        "rows": [{"client": r["client"], "so": r["so"], "amount": float(r["amount_n"]), "day": int(r["days_out"]), "level": r["esc"],
+                  "timer": timer_text(r), "owner": r["owner"], "sales_person": r["sales_person"], "calls": int(r["calls"]),
+                  "missed": int(r["fu_missed"]), "note": r["last_note"], "held": bool(r["held"])}
+                 for _, r in esc_rows.head(60).iterrows()],
+        "total": int(len(esc_rows)),
+    }
+    if bucket in FILTER_KEYS:                    # only people who have POs in this box
         people = {r: [p for p in v if p["open"] > 0] for r, v in people.items()}
     people["crm"] = [p for p in people["crm"] if p["open"] > 0]          # a caller with nothing open is not a to-do
     callers = pd.DataFrame([{
@@ -477,13 +596,14 @@ def po_overview(data, today=None, period: str = "", bucket: str = "") -> dict:
         "Sales person": p["name"], "POs": p["pos"], "Open": p["open"], "Open ₹": round(p["open_amt"]),
         f"Due in {DUE_DAYS} days": p["due_soon"], "Overdue": p["overdue"], f"{LIMIT_DAYS + 1}+ days": p["past_limit"],
         "Paid %": p["paid_pct"], "Days to pay": p["days_to_pay"], "Cancelled": p["cancelled"],
+        "Cancelled ₹": round(p["cancelled_amt"]), "Cancel %": p["cancel_pct"],
         "Not followed up": p["stale"]} for p in people["sp"]])
     return base | {
-        "kpis": kpis, "buckets": buckets, "people": people,
+        "kpis": kpis, "buckets": buckets, "people": people, "escalation": escalation, "not_sent": not_sent,
         "callers": table(callers, sort=False, title="Calling team",
                          fmt={"Open ₹": "inr", "Paid today ₹": "inr"}),
         "sales": table(sales, sort=False, title="Sales people",
-                       fmt={"Open ₹": "inr", "Paid %": "pct", "Days to pay": "dec1"}),
+                       fmt={"Open ₹": "inr", "Paid %": "pct", "Days to pay": "dec1", "Cancelled ₹": "inr", "Cancel %": "pct"}),
     }
 
 
@@ -496,7 +616,9 @@ def person_rows(data, role: str, name: str, today=None, period: str = "", bucket
     g = d[(d[col].str.casefold() == str(name).strip().casefold()) & (d["state"] == "pending")].copy()
     if period in PERIODS:
         g = g[g["period"] == period]
-    if bucket in BUCKET_KEYS:
+    if bucket == NOT_SENT:
+        g = g[g["not_sent"]]
+    elif bucket in BUCKET_KEYS:
         g = g[g["bucket"] == bucket]
     if focus == "stale":
         g = g[g["stale"]]
@@ -540,18 +662,28 @@ def person_dashboard(data, role: str, name: str, today=None, period: str = "", b
         shown = pd.DataFrame({
             "Client": rows["client"], "PO": rows["so"], "Amount ₹": rows["amount_n"].round(),
             "Sales person" if role == "crm" else "CRM member": rows["sales_person"] if role == "crm" else rows["owner"],
-            "Day": rows["days_out"], "Calls": rows["calls"],
+            "Day": rows["days_out"], "Calls": rows["calls"], "Timer": [timer_text(r) for _, r in rows.iterrows()],
+            "Next": [f"#{int(n)}" for n in rows["fu_next"]], "Missed": rows["fu_missed"], "Level": rows["esc"],
             "Promised": [("" if pd.isna(t) else f"{t:%d %b}") for t in rows["promised"]],
             "Part paid ₹": rows["part_paid_n"].round(), "Last follow-up": [("—" if pd.isna(t) else f"{t:%d %b} ({n}d ago)") for t, n in zip(rows["last_touch"], rows["days_since_touch"])],
             "Last note": rows["last_note"], "What to do": rows["action"], "Phone": rows["contact"]})
     tbl = table(shown, sort=False, title=f"{name.title()}: open POs",
-                fmt={"Amount ₹": "inr", "PO": "text", "Last follow-up": "text", "Phone": "text", "Day": "int", "Calls": "int",
+                fmt={"Amount ₹": "inr", "PO": "text", "Last follow-up": "text", "Phone": "text", "Day": "int", "Calls": "int", "Timer": "text", "Next": "text", "Missed": "int", "Level": "text",
                               "Promised": "text", "Part paid ₹": "inr"})
     tbl["states"] = [("late" if b in ("overdue", "past_limit") else "due" if b in ("due_soon", "not_sent") else "ok")
                      for b in rows["bucket"]] if len(rows) else []
     tbl["done"] = [bool(x) for x in rows["done_today"]] if len(rows) else []
+    todo_rows = rows[rows["todo"]] if len(rows) else rows
+    by_client = []
+    if len(todo_rows):                      # one call per client covers all of that client's POs
+        for who, g in todo_rows.groupby("client"):
+            by_client.append({"client": who, "pos": len(g), "so": g["so"].tolist(), "amount": float(g["amount_n"].sum()),
+                              "phone": str(g["contact"].iloc[0]), "day": int(g["days_out"].max())})
+        by_client.sort(key=lambda x: (-x["day"], -x["amount"]))
     return {"role": role, "role_label": label, "name": name.title(), "kpis": k, "stats": st, "table": tbl,
-            "count": len(rows), "todo": int(rows["todo"].sum()) if len(rows) else 0}
+            "count": len(rows), "todo": int(rows["todo"].sum()) if len(rows) else 0,
+            "progress": {"done": st["done_today"], "total": st["done_today"] + st["todo"]},
+            "call_clients": by_client}
 
 
 def person_report(data, role: str, name: str, today=None) -> dict:
@@ -582,6 +714,9 @@ def person_report(data, role: str, name: str, today=None) -> dict:
         clients.append({"client": who, "open": len(g), "amount": float(g["amount_n"].sum()), "oldest": int(g["days_out"].max())})
     clients.sort(key=lambda x: -x["amount"])
     calls = float(op["calls"].mean()) if len(op) else 0.0
+    can = mine[mine["state"] == "cancelled"].sort_values("created", ascending=False)
+    risk = op[(op["bucket"] == "past_limit") & ~op["held"]]
+    worst_fu = mine[(mine["fu_missed"] > 0)].sort_values(["fu_missed", "amount_n"], ascending=False).head(5)
     out = {
         "role": role, "role_label": label, "name": name.title(),
         "open": {"count": st["open"], "amount": st["open_amt"]},
@@ -594,15 +729,28 @@ def person_report(data, role: str, name: str, today=None) -> dict:
                    "paid_pct": round(float(r_paid["amount_n"].sum()) / r_total * 100) if r_total else 0},
         "ages": ages,
         "followup": {"not_followed_up": st["stale"], "never_called": st["never"], "status_not_updated": st["fix"],
-                     "avg_calls": round(calls, 1), "on_hold": int(op["held"].sum())},
+                     "avg_calls": round(calls, 1), "calls_per_client": round(st["calls_per_client"], 1), "calls_per_po": round(st["calls_per_po"], 1), "on_hold": int(op["held"].sum())},
         "worst": [{"client": r["client"], "so": r["so"], "amount": float(r["amount_n"]), "day": int(r["days_out"]),
                    "calls": int(r["calls"]), "note": r["last_note"]} for _, r in worst.iterrows()],
         "clients": clients[:5], "split": split[:8], "split_label": other_label,
+        "cancellations": {
+            "count": st["cancelled"], "amount": st["cancelled_amt"], "rate_pct": round(st["cancel_pct"], 1), "pos": st["pos"],
+            "at_risk": {"count": len(risk), "amount": float(risk["amount_n"].sum())},
+            "recent": [{"client": r["client"], "so": r["so"], "amount": float(r["amount_n"]), "made": f"{r['created']:%d %b}" if pd.notna(r["created"]) else "",
+                        "note": r["last_note"]} for _, r in can.head(6).iterrows()]},
+        "discipline": {
+            "expected": st["fu_expected"], "done": st["fu_done"], "missed": st["fu_missed"], "compliance_pct": round(st["compliance"]),
+            "escalated": {"l1": st["l1"], "l2": st["l2"], "l3": st["l3"]},
+            "worst": [{"client": r["client"], "so": r["so"], "missed": int(r["fu_missed"]), "expected": int(r["fu_expected"]), "state": r["state"]}
+                      for _, r in worst_fu.iterrows()]},
     }
     out["summary"] = (
         f"{out['name']} - PO report ({today:%d %b %Y})\n"
         f"Open: {out['open']['count']} POs, {_lakh(out['open']['amount'])}. Overdue or past the limit: {out['late']['count']} POs, {_lakh(out['late']['amount'])}.\n"
         f"Paid so far: {out['paid_pct']}% by value ({out['paid']['count']} POs). Cancelled: {out['cancelled']['count']}.\n"
+        f"Calls made: {round(st['calls_per_client'], 1)} per client, {round(st['calls_per_po'], 1)} per PO.\n"
+        f"Cancellations: {st['cancelled']} POs ({_lakh(st['cancelled_amt'])}), {round(st['cancel_pct'], 1)}% of POs. At risk of cancelling (11+ days): {len(risk)} POs, {_lakh(float(risk['amount_n'].sum()))}.\n"
+        f"Follow-up discipline: {round(st['compliance'])}% of daily calls made ({st['fu_missed']} missed).\n"
         f"Last 30 days: {out['recent']['sent']} POs sent ({_lakh(out['recent']['sent_amount'])}), {out['recent']['paid_pct']}% paid.\n"
         + "By age: " + ", ".join(f"{a['label']} {a['count']}" for a in ages) + ".")
     return out
@@ -624,8 +772,12 @@ def nudge_rows(data, group: str, scope: str) -> pd.DataFrame:    # scope: todo /
         g = g[g["bucket"] == "due_soon"]
     elif scope == "stale":
         g = g[g["stale"]]
+    elif scope == "escalated":
+        g = g[g["esc"].isin(["L2", "L3"])]
     elif scope in PERIODS:
         g = g[g["period"] == scope]
+    elif scope == "b:not_sent":
+        g = g[g["not_sent"]]
     elif scope.startswith("b:") and scope[2:] in BUCKET_KEYS:
         g = g[g["bucket"] == scope[2:]]
     elif scope != "all":

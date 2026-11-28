@@ -19,16 +19,19 @@ function Rows({ k }: { k: string }) {
   const q = useDashboard<CauseData>(`/enquiries/cause/${k}`, { range, order, status });
   const who = useNudgeWho();
   const names = who.data?.enabled ? who.data.who["enquiry"] ?? [] : [];
+  // A tile already fixes the age or status, so its own buttons would only repeat it: hide those.
+  const periods = PERIODS.filter(([n]) => (k === "v-today" || k === "v-old") ? false : k === "v-notpicked" ? n !== "older" : true);
+  const statuses = k === "v-notpicked" ? [] : STATUSES;
   return (
     <>
       {names.length > 0 && !k.startsWith("v-") && <SendPanel cause="enquiry" group={k} noun="enquiry" names={names} testMode={!!who.data?.test_mode} startScope={range || "older"} />}
       <div className="cause-periods" role="group" aria-label="Show enquiries from">
-        {PERIODS.map(([n, label]) => (
+        {periods.map(([n, label]) => (
           <button key={n} type="button" className={`fbtn${range === n ? " is-set" : ""}`} aria-pressed={range === n} onClick={() => setRange(range === n ? "" : n)}>
             <span className="k">{label}</span>
           </button>
         ))}
-        {STATUSES.map((s) => (
+        {statuses.map((s) => (
           <button key={s} type="button" className={`fbtn${status === s ? " is-set" : ""}`} aria-pressed={status === s} onClick={() => setStatus(status === s ? "" : s)}>
             <span className="k">{s}</span>
           </button>
@@ -101,29 +104,19 @@ export default function Enquiries() {
         {(d) => (
           <>
             <PageHead title="Enquiries" lede="What customers asked about, and what is still open. Shown exactly as the customer-care team records it." meta={d.meta} />
-            <KpiStrip kpis={d.kpis} cols={3} onPick={(id) => setPick(pick === id ? "" : id)} picked={pick} />
+            <KpiStrip kpis={d.kpis} cols={4} onPick={(id) => setPick(pick === id ? "" : id)} picked={pick} />
             {pick && VIEW[pick] && (
               <Panel title={d.kpis.find((k) => k.id === pick)?.label ?? ""} sub="Click the same box again to close this list.">
                 <Rows key={pick} k={VIEW[pick]} />
               </Panel>
             )}
-            <Panel title="Today" sub="Enquiries received today, by the status written in the sheet">
-              <p className="wrong-note">
-                {d.today.received === 0
-                  ? "No enquiries recorded today yet."
-                  : `${d.today.received} today: ` + Object.entries(d.today.status).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s.toLowerCase()}`).join(" · ")}
-              </p>
-              <p className="wrong-note">
-                Open by source: {d.by_source.map((s) => `${s.source} ${s.open} of ${s.total}`).join(" · ")}
-              </p>
-            </Panel>
             {d.auto_categorised > 0 && (
               <p className="wrong-note">
-                {d.auto_categorised} open enquiries have no category in the sheet yet, so the dashboard has guessed one from what was typed. A category the team picks always wins.
+                {d.auto_categorised} open enquiries have no CATEGORY in the sheet yet. They are listed under “Not categorised yet”. Pick a category for each in the sheet and they move to their group.
               </p>
             )}
             <CategoryExport />
-            <Panel title="What is still open" sub="Grouped by what the enquiry is about. Tap a group to see every enquiry.">
+            <Panel title="What is still open" sub="Grouped by the CATEGORY you set in the sheet. Tap a group to see every enquiry.">
               {!d.causes.length ? (
                 <Empty title="Nothing is open">Every enquiry is marked Solved.</Empty>
               ) : (

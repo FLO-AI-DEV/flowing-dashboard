@@ -1,5 +1,5 @@
 /* Who is signed in, and to which server. The token and address live in the phone's secure storage, so the owner
-   signs in once per phone (tokens last as long as the server allows, 14 days by default). */
+   signs in once per phone (tokens last as long as the server allows, 24 hours by default). */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, configureApi, DEFAULT_SERVER, normalizeServer, onSignedOut } from "./api";
 import { getItem, setItem } from "./storage";
@@ -7,6 +7,17 @@ import type { Health } from "./types";
 
 const SERVER_KEY = "flo.server";
 const TOKEN_KEY = "flo.token";
+
+/** True when a server token's own expiry has passed. An empty token (server without a passcode) never expires. */
+function tokenExpired(token: string): boolean {
+  try {
+    const payload = token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+    const exp = Number(JSON.parse(atob(payload + "=".repeat((4 - (payload.length % 4)) % 4))).exp);
+    return Number.isFinite(exp) && exp * 1000 <= Date.now();
+  } catch {
+    return false;
+  }
+}
 
 interface AuthState {
   ready: boolean;
@@ -30,6 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const [savedServer, savedToken] = await Promise.all([getItem(SERVER_KEY), getItem(TOKEN_KEY)]);
       if (!alive) return;
       const s = savedServer || DEFAULT_SERVER;
+      if (savedToken && tokenExpired(savedToken)) {
+        // past the server's sign-in window (24 h): ask for the passcode again
+        await setItem(TOKEN_KEY, null);
+        if (!alive) return;
+        configureApi({ server: s, token: null });
+        setServer(s);
+        setReady(true);
+        return;
+      }
       configureApi({ server: s, token: savedToken });
       setServer(s);
       // "signed in" = we hold a token, or a server that needs no passcode was confirmed earlier

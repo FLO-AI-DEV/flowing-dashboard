@@ -69,3 +69,22 @@ def test_nothing_to_send_or_nobody_to_send_to(view):
         n.send(box, view, "hold", "today")
     with pytest.raises(n.NudgeError):
         n.pick(view, "reply", "nonsense", 0)
+
+
+def test_message_everyone_preview_and_send():
+    from app import nudges
+    from app.dashboards import payments as pm
+    from tests.test_payments import HEAD, row
+    nudges.reset_for_tests()
+    d = pm.parse_payments([HEAD,
+        row("10/11/2026 10:00:00", "Alpha", "FWSO-1/2627", 50000, "PIYUSH", "", "KIRAN"),
+        row("08/11/2026 10:00:00", "Beta", "FWSO-2/2627", 20000, "PREETI", "", "LOKESH")], today="2026-11-20 15:00")
+    box = nudges.TestOutbox()
+    p = nudges.preview_all(box, d, "crm", "todo")
+    assert {i["name"] for i in p["items"]} == {"Kiran", "Lokesh"} and p["ready"] == 2
+    r = nudges.send_all(box, d, "crm", "todo")
+    assert sorted(r["sent"]) == ["Kiran", "Lokesh"] and len(box.rows) == 2
+    again = nudges.send_all(box, d, "crm", "todo")
+    assert again["sent"] == [] and len(again["skipped_recent"]) == 2          # not twice within 30 minutes
+    k = nudges.preview_all(box, d, "kavita", "escalated")
+    assert k["items"][0]["count"] == 2 and "escalated to you" in k["items"][0]["message"]
