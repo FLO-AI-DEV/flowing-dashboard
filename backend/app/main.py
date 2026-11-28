@@ -11,6 +11,8 @@ import hashlib
 import hmac
 import json
 import os
+import re
+import threading
 import time
 from contextlib import asynccontextmanager
 from functools import lru_cache
@@ -20,10 +22,17 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .config import SHEET_REGISTRY, get_settings
-from .core import FY_LABEL, FY_MONTH_LABELS, now_ist
+from .core import FY_LABEL, FY_MONTH_LABELS, MONTHNO_TO_LABEL, now_ist
+from .assistant import Assistant
+from .assistant import glossary
+from .assistant.analyst import GeminiAnalyst, build_facts, wants_analysis
+from .assistant.datatools import DataTools
+from .assistant.gemini import GeminiInterpreter
+from .assistant.memory import AnswerCache, ChatMemory
+from .assistant.fmt import value as fmt_value
 from .dashboards import enquiries as enqs
 from .dashboards import orders as ords
 from .dashboards import payments as pays
@@ -50,6 +59,8 @@ def get_store() -> DataStore:
 async def lifespan(_app):
     if os.getenv("SERVE_FRONTEND") == "1" or os.getenv("KEEP_WARM") == "1":    # a long-running local server
         get_store().keep_warm()
+    if os.getenv("WARM_UP", "on").strip().lower() not in ("off", "0", "false", "no"):
+        threading.Thread(target=_warm_up, daemon=True).start()
     yield
 
 
@@ -161,7 +172,7 @@ Multi = Annotated[list[str], Query()]
 def health():
     s = get_settings()
     return {"ok": True, "version": API_VERSION, "source": s.data_source, "ttl": s.live_ttl,
-            "auth_required": bool(s.passcode)}
+            "auth_required": bool(s.passcode), "assistant": _assistant_mode()}
 
 
 @app.get("/api/status", dependencies=[Depends(require_auth)])
@@ -422,6 +433,243 @@ def alerts():
             body["owner"] += f" Payments: {stale} pending payments not followed up for {pays.FOLLOWUP_DAYS}+ days."
         return _envelope(body, ds, pds)
     return _envelope(body, ds)
+
+
+# ------------------------------------------------------------------------------------------------ assistant
+def _assistant_fetch(page: str, filters: dict) -> dict:
+    """The assistant reads the dashboard only through the same read-only functions the pages call."""
+    one = {k: (v[0] if v else "") for k, v in filters.items()}
+    if page == "home":
+        return home(**filters)
+    if page == "orders":
+        return orders(**filters)
+    if page == "team":
+        return team(**filters)
+    if page == "clients":
+        return clients(**filters)
+    if page == "payments":
+        return payments(**filters)
+    if page == "po":
+        return po_overview()
+    if page == "enquiries":
+        return enquiries()
+    if page == "returns":
+        return sales_returns(client=one.get("client", ""))
+    raise KeyError(page)
+
+
+@lru_cache(maxsize=1)
+def get_assistant() -> Assistant:
+    # GEMINI_MODE=labels: the older, stricter helper (sees only the question and label names)
+    labels_mode = os.getenv("GEMINI_MODE", "analyst").strip().lower() == "labels"
+    return Assistant(_assistant_fetch, today_month=lambda: MONTHNO_TO_LABEL.get(now_ist().month),
+                     interpreter=GeminiInterpreter.from_env() if labels_mode else None)
+
+
+@lru_cache(maxsize=1)
+def get_datatools() -> DataTools:
+    return DataTools(get_store())
+
+
+@lru_cache(maxsize=1)
+def get_analyst() -> GeminiAnalyst | None:
+    return GeminiAnalyst.from_env(tools=get_datatools())
+
+
+def _assistant_mode() -> str:
+    if get_analyst() is not None:
+        return f"rules + gemini analyst ({get_analyst().model})"
+    if get_assistant().interpreter is not None:
+        return "rules + gemini labels"
+    return "rules"
+
+
+# Chat memory and the answer cache live in this process only: they reset when the API restarts.
+CHAT_MEMORY = ChatMemory()
+ANSWER_CACHE = AnswerCache()
+
+SHEET_PAGES = {"home": ("/", "Today"), "orders": ("/orders", "Orders"), "team": ("/team", "Team"),
+               "clients": ("/clients", "Clients"), "payments": ("/payments", "PO follow-up"),
+               "po": ("/payments", "PO follow-up"), "enquiries": ("/enquiries", "Enquiries"),
+               "returns": ("/returns", "Sales returns")}
+
+
+class ChatIn(BaseModel):
+    message: str = Field(min_length=1, max_length=500)
+    context: dict | None = None
+    session_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]*$")
+
+
+class ChatReset(BaseModel):
+    session_id: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_-]*$")
+
+
+def _analyst_reply(question: str, history: list) -> dict | None:
+    analyst = get_analyst()
+    if analyst is None:
+        return None
+    try:
+        facts, page = build_facts(get_assistant(), question, MONTHNO_TO_LABEL.get(now_ist().month))
+    except Exception:  # noqa: BLE001 - never break the chat because a sheet is down
+        return None
+    text = analyst.answer(question, facts, history)
+    if not text:
+        return None
+    p = SHEET_PAGES.get(page) if page else None
+    return {"answer": text, "page": p[0] if p else None, "page_label": p[1] if p else None, "context": {},
+            "understood": True, "intent": "analysis", "engine": "gemini"}
+
+
+@app.post("/api/chat", dependencies=[Depends(require_auth)])
+def chat(body: ChatIn):
+    """Flo-Wing Assistant: answers a question from the dashboard's own data (read-only).
+
+    Order (fastest first):
+      1. meaning of a word ("GR kya hai")          -> glossary, instant
+      2. the same question asked before            -> answer cache (same data version), instant
+      3. calculations, look-ups of particular rows -> Gemini analyst with exact data tools (when a key is set)
+      4. everything else                           -> the rules; what they can't place goes to the analyst
+    The chat's earlier turns (session_id) are kept in memory so follow-ups work.
+    """
+    history = CHAT_MEMORY.history(body.session_id)
+    out = glossary.answer(body.message)
+    key = None
+    if out is None and not history:
+        try:
+            key = AnswerCache.key(body.message, body.context, get_datatools().version())
+            out = ANSWER_CACHE.get(key)
+        except Exception:  # noqa: BLE001 - the cache is only a shortcut
+            key = None
+    if out is None:
+        out = _answer(body, history)
+        if key is not None and out.get("understood"):
+            ANSWER_CACHE.put(key, out)
+    CHAT_MEMORY.add(body.session_id, body.message, out.get("answer", ""))
+    _log_question(body.message, out)
+    return out
+
+
+_HELLO = re.compile(r"^\s*(hi|hello|hey|help|madad|menu|what can you do|kya kar sakte ho)\s*[?!.]*\s*$", re.I)
+_ATTENTION = re.compile(r"\b(needs? attention|attention|urgent|alerts?|what should i (check|look at)|who must act|"
+                        r"kya dekhna|kya urgent|aaj ka summary|today'?s summary|summary of (everything|all)|"
+                        r"sab ka summary|status report|kya chal raha|what happened today|aaj kya hua)\b", re.I)
+
+
+def _attention_answer() -> dict | None:
+    data = home()
+    figs = ", ".join(f"{k['label'].lower()} **{fmt_value(k.get('value'), k.get('format'), k.get('unit') or '')}**"
+                     for k in data.get("kpis", []))
+    lines = [f"**Today**: {figs}." if figs else "**Today**"]
+    acts = [a for a in data.get("actions", []) if a.get("tone") in ("bad", "warn")][:8]
+    for a in acts:
+        late = f", {a['late']} late" if a.get("late") else ""
+        lines.append(f"• **{a['who']}** ({a['stage']}{late}): {a.get('what', '')}".rstrip(": "))
+    for n in data.get("notices", [])[:3]:
+        lines.append(f"• ⚠ {n.get('text', '') if isinstance(n, dict) else n}")
+    if len(lines) == 1 and not figs:
+        return None
+    return {"answer": "\n".join(lines), "page": "/", "page_label": "Today", "context": {}, "understood": True,
+            "intent": "overview", "engine": "rules"}
+
+
+_PO_SPLIT = re.compile(r"\b(escalat\w*|l[123]|past (the )?limit|overdue pos?|due soon|on track|not sent|"
+                       r"po (status|buckets?|split))\b", re.I)
+_PIPELINE = re.compile(r"\b(on hold|hold|pipeline|where are (the )?orders|waiting for (mona|po|billing)|"
+                       r"kahan atke|kaha atke|stuck)\b", re.I)
+
+
+def _money(v) -> str:
+    return fmt_value(v, "inr")
+
+
+def _po_split() -> dict:
+    d = po_overview()
+    lines = ["**PO follow-up** (open POs by days since the PO was sent):"]
+    lines += [f"• {b['label']}: **{b['count']}** ({_money(b['amount'])})" for b in d.get("buckets", [])]
+    lv = (d.get("escalation") or {}).get("levels") or []
+    if lv:
+        lines.append("Escalation: " + "; ".join(f"**{x['key']}** {x['count']} ({_money(x['amount'])})" for x in lv) + ".")
+    return {"answer": "\n".join(lines), "page": "/payments", "page_label": "PO follow-up", "context": {},
+            "understood": True, "intent": "summary", "engine": "rules"}
+
+
+def _pipeline() -> dict:
+    d = home()
+    lines = ["**Where orders are waiting:**"]
+    for p in d.get("pipeline", []):
+        late = f", {p['late']} late" if p.get("late") else ""
+        who = f" ({p['owner']})" if p.get("owner") else ""
+        lines.append(f"• {p['label']}{who}: **{p['count']}**{late}")
+    return {"answer": "\n".join(lines), "page": "/", "page_label": "Today", "context": {}, "understood": True,
+            "intent": "summary", "engine": "rules"}
+
+
+def _quick(message: str) -> dict | None:
+    """Greetings, 'what needs attention', the PO split and the order pipeline are answered without parsing."""
+    try:
+        if _PO_SPLIT.search(message) and len(message.split()) <= 10:
+            return _po_split()
+        if _PIPELINE.search(message) and len(message.split()) <= 10:
+            return _pipeline()
+    except Exception:  # noqa: BLE001 - a sheet that can't be read: fall through to the rules
+        pass
+    if _HELLO.match(message):
+        out = get_assistant().answer("what can you do", None)
+        out["answer"] = out["answer"] + "\n\nYou can also ask what any word means, e.g. \"GR kya hai\" or \"what is L3 escalation\"."
+        return out
+    if _ATTENTION.search(message) and len(message.split()) <= 8:
+        try:
+            return _attention_answer()
+        except Exception:  # noqa: BLE001 - fall back to the rules
+            return None
+    return None
+
+
+def _answer(body: ChatIn, history: list) -> dict:
+    quick = _quick(body.message)
+    if quick is not None:
+        return quick
+    follow_up = bool(history) and len(body.message.split()) <= 4      # "and late?", "uska total?"
+    if get_analyst() is not None and (wants_analysis(body.message) or follow_up):
+        out = _analyst_reply(body.message, history)
+        if out is not None:
+            return out
+    rules = get_assistant().answer(body.message, body.context)
+    if not rules.get("understood"):
+        return _analyst_reply(body.message, history) or rules
+    return rules
+
+
+def _warm_up():
+    """Reads every sheet and builds the lookup tables once at start, so the first question is fast."""
+    try:
+        get_datatools().tables()
+        get_assistant().answer("open orders", None)
+    except Exception:  # noqa: BLE001 - warming up is best effort
+        pass
+
+
+@app.post("/api/chat/reset", dependencies=[Depends(require_auth)])
+def chat_reset(body: ChatReset):
+    """Forget one chat's history (the reset button in the chat window)."""
+    CHAT_MEMORY.clear(body.session_id)
+    return {"ok": True}
+
+
+_CHAT_LOG = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "chat_questions.log")
+
+
+def _log_question(question: str, out: dict):
+    """Keeps a local list of questions (not answers or figures) so missed ones can be taught to the assistant.
+    Turn off with CHAT_LOG=off. On Vercel the disk is read-only, so nothing is written there."""
+    if os.getenv("CHAT_LOG", "on").strip().lower() in ("off", "0", "false", "no"):
+        return
+    try:
+        status = "MISSED" if not out.get("understood") else ("GEMINI" if out.get("engine") == "gemini" else "ok")
+        with open(_CHAT_LOG, "a", encoding="utf-8") as fh:
+            fh.write(f"{now_ist():%Y-%m-%d %H:%M}\t{status}\t{question.strip()[:300]}\n")
+    except OSError:
+        pass
 
 
 # ------------------------------------------------------------------------------------------------ static (optional)
