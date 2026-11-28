@@ -1,5 +1,5 @@
 /* Sign in once per phone: the dashboard address (pre-filled when the app was built with EXPO_PUBLIC_API_URL) and the
-   team passcode, the same one as on the web dashboard. */
+   team password, the same one as on the web dashboard. */
 import { useState } from "react";
 import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,7 +44,7 @@ export default function SignIn() {
         />
         <View style={[st.card, { backgroundColor: c.sheet, borderColor: c.sheetEdge }]}>
           <Text style={{ fontFamily: font.display, fontSize: 28, lineHeight: 34, color: c.brand }}>Operations dashboard</Text>
-          <T>Live production, orders, fabric, samples and revenue, straight from the team’s Google Sheets.</T>
+          <T>Orders, PO follow-up, enquiries and sales returns, live from Flo-Wing’s Google Sheets. The password is asked again every 24 hours.</T>
 
           {showServer ? (
             <View style={{ gap: 6 }}>
@@ -65,11 +65,11 @@ export default function SignIn() {
           ) : null}
 
           <View style={{ gap: 6 }}>
-            <T v="label">Team passcode</T>
+            <T v="label">Team password</T>
             <TextInput
               value={code}
               onChangeText={setCode}
-              placeholder="Passcode"
+              placeholder="Password"
               placeholderTextColor={c.faint}
               secureTextEntry
               autoCapitalize="none"
@@ -78,9 +78,9 @@ export default function SignIn() {
               returnKeyType="go"
               onSubmitEditing={submit}
               style={input}
-              accessibilityLabel="Team passcode"
+              accessibilityLabel="Team password"
             />
-            <T v="small">Leave it empty if your dashboard doesn’t use a passcode.</T>
+            <T v="small">The same password as the web dashboard.</T>
           </View>
 
           {err && (

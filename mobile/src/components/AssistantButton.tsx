@@ -1,4 +1,4 @@
-/* The round robot button in the corner of every dashboard screen; opens FLO Assistant. */
+/* The round robot button in the corner of every dashboard screen; opens Flo-Wing Assistant. */
 import { router } from "expo-router";
 import { Pressable, StyleSheet } from "react-native";
 import { useTheme } from "../lib/theme";
@@ -10,7 +10,7 @@ export function AssistantButton({ bottom = 0 }: { bottom?: number }) {
     <Pressable
       onPress={() => router.push("/assistant")}
       accessibilityRole="button"
-      accessibilityLabel="Ask FLO Assistant"
+      accessibilityLabel="Ask Flo-Wing Assistant"
       style={({ pressed }) => [
         st.fab,
         { bottom: 16 + bottom, backgroundColor: c.brand, transform: [{ scale: pressed ? 0.94 : 1 }], shadowColor: "#0b1a33" },

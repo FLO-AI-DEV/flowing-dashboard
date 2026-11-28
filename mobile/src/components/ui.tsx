@@ -64,16 +64,19 @@ export function Section({ title, sub, action, children }: { title: string; sub?:
   );
 }
 
-function KpiTile({ k, lead }: { k: Kpi; lead?: boolean }) {
+function KpiTile({ k, lead, onPress, picked }: { k: Kpi; lead?: boolean; onPress?: () => void; picked?: boolean }) {
   const c = useTheme();
   const f = fmtKpi(k.value, k.format);
   const unit = f.unit || (k.unit && k.format !== "pct" && typeof k.value === "number" ? k.unit : "");
   const color = k.tone === "alert" && typeof k.value === "number" && k.value > 0 ? c.neg : k.tone === "good" ? c.pos : c.ink;
   const isText = typeof k.value === "string";
   return (
-    <View
-      style={[s.kpi, { backgroundColor: c.sheet, borderColor: lead ? c.ruleStrong : c.sheetEdge }, lead ? s.kpiLead : null]}
+    <Pressable
+      onPress={onPress}
+      disabled={!onPress}
+      style={({ pressed }) => [s.kpi, { backgroundColor: pressed ? c.pressed : c.sheet, borderColor: picked ? c.accent : lead ? c.ruleStrong : c.sheetEdge }, picked ? { borderWidth: 1.5 } : null, lead ? s.kpiLead : null]}
       accessible
+      accessibilityRole={onPress ? "button" : undefined}
       accessibilityLabel={`${k.label}: ${f.value} ${unit}`}
     >
       <T v="label" numberOfLines={2}>{k.label}</T>
@@ -86,23 +89,23 @@ function KpiTile({ k, lead }: { k: Kpi; lead?: boolean }) {
       {!!k.hint && !/^(sheet )?col(umn)?s? [A-Z]/i.test(k.hint) && (
         <T v="small" numberOfLines={2} style={{ fontSize: 12, lineHeight: 16 }}>{k.hint}</T>
       )}
-    </View>
+    </Pressable>
   );
 }
 
 /** Two tiles per row; the KPIs named in `lead` get a full-width tile so the figure that matters reads first. */
-export function KpiGrid({ kpis, lead = [] }: { kpis: Kpi[]; lead?: string[] }) {
+export function KpiGrid({ kpis, lead = [], onPick, picked }: { kpis: Kpi[]; lead?: string[]; onPick?: (id: string) => void; picked?: string }) {
   const first = kpis.filter((k) => lead.includes(k.id));
   const rest = kpis.filter((k) => !lead.includes(k.id));
   return (
     <View style={{ gap: 10 }}>
       {first.map((k) => (
-        <KpiTile key={k.id} k={k} lead />
+        <KpiTile key={k.id} k={k} lead onPress={onPick ? () => onPick(k.id) : undefined} picked={picked === k.id} />
       ))}
       <View style={s.kpiGrid}>
         {rest.map((k) => (
           <View key={k.id} style={s.kpiCell}>
-            <KpiTile k={k} />
+            <KpiTile k={k} onPress={onPick ? () => onPick(k.id) : undefined} picked={picked === k.id} />
           </View>
         ))}
       </View>

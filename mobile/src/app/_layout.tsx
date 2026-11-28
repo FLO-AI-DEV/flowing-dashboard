@@ -1,5 +1,5 @@
 /* App root: fonts, data and sign-in providers, and the navigation stack. Until the owner signs in only the sign-in
-   screen exists; afterwards the dashboard tabs, the detail pages and FLO Assistant. */
+   screen exists; afterwards the dashboard tabs, the detail pages and Flo-Wing Assistant. */
 import { BodoniModa_500Medium } from "@expo-google-fonts/bodoni-moda/500Medium";
 import { BodoniModa_600SemiBold } from "@expo-google-fonts/bodoni-moda/600SemiBold";
 import { InstrumentSans_400Regular } from "@expo-google-fonts/instrument-sans/400Regular";
@@ -33,7 +33,7 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
   const detail = {
     headerShown: true,
     headerTitle: "",
-    headerBackTitle: "More",
+    headerBackTitle: "Back",
     headerShadowVisible: false,
     headerStyle: { backgroundColor: c.frame },
     headerTintColor: c.ink,
@@ -45,10 +45,14 @@ function Navigation({ fontsReady }: { fontsReady: boolean }) {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.frame } }}>
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="designers" options={detail} />
+          <Stack.Screen name="cause/[key]" options={detail} />
+          <Stack.Screen name="orders-all" options={detail} />
+          <Stack.Screen name="po-person" options={detail} />
+          <Stack.Screen name="po-report" options={detail} />
+          <Stack.Screen name="enquiry/[key]" options={detail} />
+          <Stack.Screen name="returns" options={detail} />
+          <Stack.Screen name="team" options={detail} />
           <Stack.Screen name="clients" options={detail} />
-          <Stack.Screen name="samples" options={detail} />
-          <Stack.Screen name="fabricators" options={detail} />
           <Stack.Screen name="assistant" options={{ presentation: "modal", contentStyle: { backgroundColor: c.sheet } }} />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>

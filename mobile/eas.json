@@ -11,13 +11,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://flo-dashboardd.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://flowing-dashboard.vercel.app"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://flo-dashboardd.vercel.app"
+        "EXPO_PUBLIC_API_URL": "https://flowing-dashboard.vercel.app"
       }
     }
   },

@@ -11,15 +11,15 @@ import { Button, T } from "./ui";
 
 export type FilterValues = Record<string, string[]>;
 
-export function useFilters(keys: string[]) {
-  const [values, setValues] = useState<FilterValues>(() => Object.fromEntries(keys.map((k) => [k, []])));
+export function useFilters(keys: string[], initial: FilterValues = {}) {
+  const [values, setValues] = useState<FilterValues>(() => Object.fromEntries(keys.map((k) => [k, initial[k] ?? []])));
   const set = useCallback((k: string, v: string[]) => setValues((s) => ({ ...s, [k]: v })), []);
   const reset = useCallback(() => setValues(Object.fromEntries(keys.map((k) => [k, []]))), [keys]);
   const active = Object.values(values).filter((v) => v.length).length;
   return { values, set, reset, setAll: setValues, active };
 }
 
-function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
+export function Chip({ label, on, onPress }: { label: string; on: boolean; onPress: () => void }) {
   const c = useTheme();
   return (
     <Pressable

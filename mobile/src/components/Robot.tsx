@@ -1,4 +1,4 @@
-/* FLO Assistant's robot, the same drawing as the web launcher (frontend/src/components/assistant/Robot.tsx). */
+/* Flo-Wing Assistant's robot, the same drawing as the web launcher (frontend/src/components/assistant/Robot.tsx). */
 import Svg, { Circle, G, Line, Path, Rect } from "react-native-svg";
 
 export function Robot({ size = 30, color }: { size?: number; color: string }) {

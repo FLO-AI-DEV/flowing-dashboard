@@ -73,10 +73,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const s = normalizeServer(rawServer);
     if (!s) throw new Error("Enter the dashboard address.");
     const health = await api<Health>("/health", undefined, { server: s, timeoutMs: 20_000 });
-    if (!health || health.ok !== true) throw new Error("That address is not a FLO dashboard.");
+    if (!health || health.ok !== true) throw new Error("That address is not a Flo-Wing dashboard.");
     let token = "";
     if (health.auth_required) {
-      if (!passcode) throw new Error("Enter the team passcode.");
+      if (!passcode) throw new Error("Enter the team password.");
       configureApi({ server: s, token: null });
       const r = await api<{ token: string }>("/auth/login", undefined, { method: "POST", body: { passcode }, timeoutMs: 20_000 });
       token = r.token;

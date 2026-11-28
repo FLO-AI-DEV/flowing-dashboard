@@ -5,7 +5,7 @@ import { focusManager, keepPreviousData, QueryClient, useQuery, useQueryClient }
 import { useEffect } from "react";
 import { AppState, Platform } from "react-native";
 import { api, ApiError, type Params } from "./api";
-import type { Envelope, StatusData } from "./types";
+import type { Envelope, NudgeWho, StatusData } from "./types";
 
 export const REFRESH_MS = 60_000;
 
@@ -36,6 +36,11 @@ export function useDashboard<T extends Envelope>(path: string, params: Params = 
     refetchIntervalInBackground: false,
     placeholderData: keepPreviousData,
   });
+}
+
+/** Whether WhatsApp sending is set up, and who each cause goes to. The Staff tab rarely changes. */
+export function useNudgeWho() {
+  return useQuery<NudgeWho, Error>({ queryKey: ["/nudge/who"], queryFn: () => api<NudgeWho>("/nudge/who"), staleTime: 120_000, retry: false });
 }
 
 export function useStatus() {

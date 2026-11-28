@@ -1,4 +1,4 @@
-/* FLO Assistant on the phone: the same POST /api/chat as the web widget, so it answers from the dashboard's own
+/* Flo-Wing Assistant on the phone: the same POST /api/chat as the web widget, so it answers from the dashboard's own
    numbers (read-only), in English or Hinglish, and keeps the subject for follow-ups ("and for May?"). The chat
    lasts for as long as the app is open. */
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -16,8 +16,8 @@ type Reply = { answer: string; page: string | null; page_label: string | null; c
 type Msg = { id: number; role: "user" | "bot"; text: string; page?: string | null; pageLabel?: string | null; error?: boolean; retry?: string };
 
 const MAX_LEN = 500;
-const WELCOME = "Hi! I'm **FLO Assistant**. Ask me anything about the dashboard: any number, name or month, in English or Hinglish.";
-const SUGGESTIONS = ["Total pending", "This month revenue", "Overdue POs", "Top 3 vendors by pending fabric", "Sabse zyada pending kis fabricator ke paas hai", "New vs repeat revenue"];
+const WELCOME = "Hi! I'm **Flo-Wing Assistant**. Ask me anything about the dashboard: any number, client, sales person, order, PO, enquiry, return or month, or what a word means, in English or Hinglish.";
+const SUGGESTIONS = ["What needs attention?", "Kitne orders late hai?", "Kiran ke paas kitne pending hai", "Pending payments", "Total open enquiries", "Top 5 clients by orders", "GR kya hai?"];
 
 // kept outside the component so closing and reopening the chat keeps the conversation
 const memory: { msgs: Msg[]; ctx: Record<string, unknown> | null; next: number } = { msgs: [], ctx: null, next: 1 };
@@ -25,7 +25,7 @@ const remember = (patch: Partial<typeof memory>) => Object.assign(memory, patch)
 const nextId = () => memory.next++;
 
 /** Web paths in answers -> app screens (they are the same names). */
-const ROUTES = new Set(["/", "/production", "/fabric-po", "/target", "/designers", "/clients", "/samples", "/fabricators"]);
+const ROUTES = new Set(["/", "/orders", "/payments", "/enquiries", "/returns", "/team", "/clients"]);
 
 /** Android draws edge to edge, so the window no longer shrinks for the keyboard: track its height ourselves.
     React Native reports it without the navigation bar, which insets.bottom already covers. */
@@ -104,13 +104,13 @@ export default function Assistant() {
           <Robot size={24} color={c.onBrand} />
         </View>
         <View style={{ flex: 1 }}>
-          <T v="title">FLO Assistant</T>
+          <T v="title">Flo-Wing Assistant</T>
           <T v="small" style={{ fontSize: 12.5 }}>Answers from this dashboard · read-only</T>
         </View>
         <Pressable onPress={reset} disabled={!msgs.length || busy} hitSlop={8} accessibilityRole="button" accessibilityLabel="Start a new chat" style={{ opacity: !msgs.length || busy ? 0.35 : 1, padding: 6 }}>
           <Ionicons name="refresh" size={21} color={c.ink} />
         </Pressable>
-        <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close FLO Assistant" style={{ padding: 6 }}>
+        <Pressable onPress={() => router.back()} hitSlop={8} accessibilityRole="button" accessibilityLabel="Close Flo-Wing Assistant" style={{ padding: 6 }}>
           <Ionicons name="close" size={24} color={c.ink} />
         </Pressable>
       </View>
@@ -155,7 +155,7 @@ export default function Assistant() {
           ),
         )}
         {busy && (
-          <View style={[st.bubble, st.bot, { backgroundColor: c.sheet, borderColor: c.sheetEdge, flexDirection: "row", alignItems: "center", gap: 8 }]} accessibilityLabel="FLO Assistant is typing">
+          <View style={[st.bubble, st.bot, { backgroundColor: c.sheet, borderColor: c.sheetEdge, flexDirection: "row", alignItems: "center", gap: 8 }]} accessibilityLabel="Flo-Wing Assistant is typing">
             <ActivityIndicator size="small" color={c.muted} />
             <T v="small">Reading the dashboard…</T>
           </View>

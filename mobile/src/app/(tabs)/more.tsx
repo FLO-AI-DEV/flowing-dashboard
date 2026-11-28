@@ -1,4 +1,4 @@
-/* More: the other dashboards, FLO Assistant, the state of each Google Sheet, and sign out. */
+/* More: Sales returns, Team, Clients, Flo-Wing Assistant, the state of each Google Sheet, and sign out. */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import Constants from "expo-constants";
 import { router, type Href } from "expo-router";
@@ -16,10 +16,9 @@ import { font, useTheme } from "../../lib/theme";
 type Icon = ComponentProps<typeof Ionicons>["name"];
 
 const PAGES: { to: Href; title: string; sub: string; icon: Icon }[] = [
-  { to: "/designers", title: "Designers", sub: "New and repeat pcs per designer", icon: "color-palette-outline" },
-  { to: "/clients", title: "Clients", sub: "Orders and fulfilment per client", icon: "people-outline" },
-  { to: "/samples", title: "Samples", sub: "Approved, rejected and in process", icon: "shirt-outline" },
-  { to: "/fabricators", title: "Fabricators", sub: "Stock with each fabricator, month by month", icon: "construct-outline" },
+  { to: "/returns", title: "Sales returns", sub: "QC pass / fail, calls to make, 90-day policy", icon: "return-down-back-outline" },
+  { to: "/team", title: "Team", sub: "Who is holding orders, the sales team, rows to fix", icon: "people-outline" },
+  { to: "/clients", title: "Clients", sub: "Biggest clients and who has gone quiet", icon: "business-outline" },
 ];
 
 function Row({ title, sub, onPress, left, first }: { title: string; sub?: string; onPress: () => void; left: ReactNode; first?: boolean }) {
@@ -46,7 +45,7 @@ export default function More() {
 
   const signOut = () => {
     if (Platform.OS === "web") return void auth.signOut();
-    Alert.alert("Sign out?", "You'll need the team passcode to sign in again.", [
+    Alert.alert("Sign out?", "You'll need the team password to sign in again.", [
       { text: "Cancel", style: "cancel" },
       { text: "Sign out", style: "destructive", onPress: () => void auth.signOut() },
     ]);
@@ -73,7 +72,7 @@ export default function More() {
         {PAGES.map((p, i) => (
           <Row key={p.title} first={i === 0} title={p.title} sub={p.sub} onPress={() => router.push(p.to)} left={<Ionicons name={p.icon} size={20} color={c.ink} />} />
         ))}
-        <Row title="FLO Assistant" sub="Ask about any number, in English or Hinglish" onPress={() => router.push("/assistant")} left={<Robot size={22} color={c.ink} />} />
+        <Row title="Flo-Wing Assistant" sub="Ask about any number, in English or Hinglish" onPress={() => router.push("/assistant")} left={<Robot size={22} color={c.ink} />} />
       </Card>
 
       <View style={{ gap: 10 }}>
@@ -106,7 +105,7 @@ export default function More() {
           <Button label="Sign out" onPress={signOut} />
         </Card>
         <T v="small" style={{ textAlign: "center" }}>
-          FLO Operations · version {Constants.expoConfig?.version ?? "1.0.0"} · read-only
+          Flo-Wing Operations · version {Constants.expoConfig?.version ?? "1.0.0"} · read-only
         </T>
       </View>
     </ScrollView>

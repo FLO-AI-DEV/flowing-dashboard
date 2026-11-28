@@ -1,4 +1,5 @@
-/* Bottom tabs for the four screens the owner opens most; the rest live under More. */
+/* Bottom tabs: the four screens the team opens most (Today, Orders, PO follow-up, Enquiries); Sales returns, Team,
+   Clients, the assistant and the sheets' status live under More. */
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Tabs } from "expo-router/js-tabs";
 import type { ComponentProps } from "react";
@@ -28,10 +29,10 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: c.frame },
       }}
     >
-      <Tabs.Screen name="index" options={{ title: "Overview", tabBarIcon: icon("home", "home-outline") }} />
-      <Tabs.Screen name="production" options={{ title: "Production", tabBarIcon: icon("cube", "cube-outline") }} />
-      <Tabs.Screen name="fabric-po" options={{ title: "Fabric PO", tabBarIcon: icon("layers", "layers-outline") }} />
-      <Tabs.Screen name="target" options={{ title: "Revenue", tabBarIcon: icon("trending-up", "trending-up-outline") }} />
+      <Tabs.Screen name="index" options={{ title: "Today", tabBarIcon: icon("home", "home-outline") }} />
+      <Tabs.Screen name="orders" options={{ title: "Orders", tabBarIcon: icon("clipboard", "clipboard-outline") }} />
+      <Tabs.Screen name="payments" options={{ title: "PO follow-up", tabBarIcon: icon("cash", "cash-outline") }} />
+      <Tabs.Screen name="enquiries" options={{ title: "Enquiries", tabBarIcon: icon("chatbubbles", "chatbubbles-outline") }} />
       <Tabs.Screen name="more" options={{ title: "More", tabBarIcon: icon("grid", "grid-outline") }} />
     </Tabs>
   );

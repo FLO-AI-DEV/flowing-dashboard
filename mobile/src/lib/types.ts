@@ -1,4 +1,4 @@
-/* Shapes returned by the FLO API (backend/app). Shared later with the React Native app. */
+/* Shapes returned by the Flo-Wing API (backend/app). Same as frontend/src/api/types.ts. */
 
 export type Fmt = "text" | "int" | "dec" | "dec1" | "pct" | "inr" | "inr_full" | "date";
 export type Tone = "good" | "alert";
@@ -85,154 +85,96 @@ export interface Envelope {
 
 export type Options = Record<string, string[]>;
 
-export interface DesignerData extends Envelope {
-  options: Options;
-  kpis: Kpi[];
-  tables: { designers: TableData; categories: TableData };
-  charts: { new_vs_repeat: SeriesChart; monthly_trend: SeriesChart };
+export type Tone3 = "bad" | "warn" | "good";
+
+export interface Action {
+  who: string;
+  stage: string;
+  what: string;
+  late: number;
+  due: number;
+  oldest_days: number;
+  tone: Tone3;
 }
 
-export interface ClientData extends Envelope {
-  options: Options;
-  kpis: Kpi[];
-  tables: { monthly: TableData; categories: TableData };
-  charts: { monthly_share: Slice[]; fulfilment: Slice[]; category_by_month: SeriesChart };
+export interface PipelineStep {
+  key: "reply" | "po" | "bill" | "hold" | "old" | "done";
+  label: string;
+  owner: string;
+  count: number;
+  late: number;
 }
 
-export interface ProductionData extends Envelope {
-  options: Options;
-  kpis: Kpi[];
-  tables: { categories: TableData; fabricators: TableData; monthly: TableData };
-  charts: { by_category: SeriesChart; pending_share: Slice[]; monthly: SeriesChart };
-  summary: { overdue_designs: number; pending_pct: number };
+export interface Wrong {
+  key: "reply" | "po" | "bill" | "hold";
+  label: string;
+  who: string;
+  backlog: number;
+  today: number;
+  oldest_days: number;
 }
 
-export interface SamplesData extends Envelope {
-  empty?: boolean;
-  options: Options;
-  notices: Notice[];
-  kpis: Kpi[];
-  tables: { monthly: TableData; designers: TableData; vendors: TableData };
-  charts: {
-    monthly_status: SeriesChart;
-    monthly_trend: SeriesChart;
-    status_share: Slice[];
-    designers: SeriesChart;
-    vendors: SeriesChart;
-  };
-}
-
-export interface FabricatorData extends Envelope {
-  empty?: boolean;
-  options: Options;
-  metric: string;
-  notices: Notice[];
-  kpis: Kpi[];
-  tables: { monthly: TableData; scorecard: TableData };
-  check: Notice;
-  matrix: null | {
-    table: TableData;
-    heatmap: { rows: string[]; columns: string[]; values: number[][] };
-  };
-  charts: {
-    monthly: SeriesChart;
-    issue_incoming: SeriesChart;
-    rcvd_vs_remaining: SeriesChart;
-    received_pct: Slice[];
-  };
-}
-
-export interface FabricPoData extends Envelope {
-  empty?: boolean;
-  empty_filtered?: boolean;
-  options: Options;
-  rule: string;
-  notices: Notice[];
-  kpis: Kpi[];
-  tables: { monthly: TableData; vendors: TableData; vendor_share: TableData; overdue: TableData; pos: TableData };
-  overdue_total: number;
-  charts: {
-    monthly: SeriesChart;
-    order_type: Slice[];
-    vendors: SeriesChart;
-    vendor_share: Slice[];
-    timing: Slice[];
-  };
-}
-
-export interface RepeatDesign {
-  barcode: string;
-  image: string;
-  item: string;
-  designer: string;
-  orders: number;
-  pcs: number;
-  revenue: number;
-  last: string;
-}
-
-export interface TargetData extends Envelope {
-  empty?: boolean;
-  options: Options;
-  notices: Notice[];
-  annual_target_cr: number;
-  tracker: {
-    kpis: Kpi[];
-    gauge: { value: number; achieved: number; target: number };
-    schedule: { gap: number; scheduled: number; elapsed: string[]; months_left: number };
-    monthly: {
-      categories: string[];
-      achieved: number[];
-      target: number[];
-      cum_target: (number | null)[];
-      cum_achieved: (number | null)[];
-    };
-    table: TableData;
-    notices: Notice[];
-  };
-  quality: { notices: Notice[]; rows: TableData | null };
-  filtered:
-    | { empty: true; notices: Notice[] }
-    | {
-        empty?: false;
-        kpis: Kpi[];
-        tables: { monthly: TableData; designers: TableData; items: TableData; order_by: TableData; lines: TableData };
-        lines_total: number;
-        lines_truncated: boolean;
-        top_repeat: RepeatDesign[];
-        charts: { monthly: SeriesChart; designers: SeriesChart; items: Slice[]; order_by: Slice[] };
-      };
-}
-
-export interface Alert {
-  kind: NoticeKind;
-  area: string;
+export interface CauseData extends Envelope {
   title: string;
-  text: string;
-  top?: { dimension: string; name: string; value: number }[];
+  count: number;
+  total: number;
+  table: TableData;
+}
+export interface DailyClose {
+  received: number;
+  done: number;
+  pending: number;
+  backlog: number;
+  after_cutoff: boolean;
+  cutoff: string;
+  by_channel: { channel: string; received: number; done: number }[];
+  wrong: Wrong[];
+  never_marked: number;
 }
 
-export interface OverviewData extends Envelope {
+export interface HomeData extends Envelope {
+  title: string;
+  month: string[];
+  kpis: Kpi[];
+  close: DailyClose;
+  pipeline: PipelineStep[];
+  actions: Action[];
+  channels: { channel: string; orders: number; sets: number }[];
+  notices: Notice[];
   options: Options;
-  alerts: Alert[];
-  errors: Notice[];
-  sections: {
-    orders?: {
-      kpis: Kpi[];
-      stats: Record<string, number>;
-      tables: { fabricators: TableData; categories: TableData; clients: TableData };
-      charts: { monthly: SeriesChart; fabricators: SeriesChart };
-    };
-    stock?: { kpis: Kpi[]; table: TableData; chart: SeriesChart };
-    po?: {
-      kpis: Kpi[];
-      tables: { vendors: TableData; overdue: TableData };
-      overdue_total: number;
-      timing: Slice[];
-    };
-    samples?: { kpis: Kpi[]; table: TableData; chart: SeriesChart };
-    designers?: { table: TableData };
-  };
+}
+
+export type OrderState = "late" | "due" | "ok" | "hold" | "old" | "done";
+
+export interface OrdersData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  table: TableData & { states: OrderState[] };
+  options: Options;
+}
+
+export interface TeamData extends Envelope {
+  title: string;
+  sales: TableData;
+  owners: TableData;
+  fixes: TableData;
+  options: Options;
+}
+
+export interface ClientsData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  table: TableData;
+  options: Options;
+}
+
+export interface PaymentsData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  members: TableData;
+  pending: TableData & { states?: OrderState[] };
+  notices: Notice[];
+  options: Options;
 }
 
 export interface SourceStatus {
@@ -259,4 +201,132 @@ export interface Health {
   source: "google" | "demo";
   ttl: number;
   auth_required: boolean;
+}
+
+export interface NudgeWho {
+  enabled: boolean;
+  test_mode: boolean;
+  who: Record<string, string[]>;
+  error?: string;
+}
+
+export interface NudgePreview {
+  count: number;
+  to: string[];
+  message: string;
+  already_sent_minutes: number | null;
+  test_mode: boolean;
+  sent?: boolean;
+  sent_at?: string;
+}
+
+export interface EnquiryCause {
+  key: string;
+  label: string;
+  open: number;
+  today: number;
+  older: number;
+  oldest_days: number;
+}
+export interface EnquiriesData extends Envelope {
+  kpis: Kpi[];
+  today: { received: number; status: Record<string, number> };
+  causes: EnquiryCause[];
+  by_source: { source: string; open: number; total: number }[];
+  total_open: number;
+  auto_categorised: number;
+  notices: Notice[];
+}
+export interface EnquiryCategories extends Envelope {
+  tabs: { label: string; tab: string; first_row: number; column: string | null; values: string[] }[];
+}
+
+export interface PoBucket { key: string; label: string; count: number; amount: number }
+export interface PoPersonStat {
+  name: string; pos: number; open: number; on_track: number; open_amt: number; due_soon: number; overdue: number; past_limit: number;
+  past_limit_amt: number; not_sent: number; paid: number; paid_amt: number; paid_pct: number; cancelled: number;
+  cancelled_amt: number; days_to_pay: number | null; todo: number; done_today: number; paid_today_amt: number;
+  never: number; fix: number; stale: number;
+  l1: number; l2: number; l3: number; at_risk: number; at_risk_amt: number; cancel_pct: number;
+  fu_expected: number; fu_done: number; fu_missed: number; compliance: number;
+  calls_per_client: number; calls_per_po: number;
+}
+export interface PoEscalationRow {
+  client: string; so: string; amount: number; day: number; level: "L2" | "L3"; timer: string; owner: string;
+  sales_person: string; calls: number; missed: number; note: string; held: boolean;
+}
+export interface PoEscalation { levels: PoBucket[]; rows: PoEscalationRow[]; total: number }
+export interface PoOverview extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  buckets: PoBucket[];
+  callers: TableData;
+  sales: TableData;
+  people: { crm: PoPersonStat[]; sp: PoPersonStat[] };
+  escalation: PoEscalation;
+  not_sent: { count: number; amount: number; rows: { client: string; so: string; amount: number; day: number; owner: string; sales_person: string; made: string }[] };
+  window: { key: string; label: string; start: string; rows: number; log_rows: number; older_open: number };
+  period: string;
+  bucket: string;
+  periods: { key: string; label: string; count: number; amount: number }[];
+  windows: { key: string; label: string }[];
+  rules: { due_days: number; limit_days: number };
+  notices: Notice[];
+}
+export interface PoPerson extends Envelope {
+  role: "crm" | "sp";
+  role_label: string;
+  name: string;
+  kpis: Kpi[];
+  stats: PoPersonStat;
+  table: TableData & { states: string[]; done: boolean[] };
+  count: number;
+  todo: number;
+  progress: { done: number; total: number };
+  call_clients: { client: string; pos: number; so: string[]; amount: number; phone: string; day: number }[];
+}
+
+export interface PoReport extends Envelope {
+  role: "crm" | "sp"; role_label: string; name: string;
+  open: { count: number; amount: number }; late: { count: number; amount: number };
+  paid_pct: number; paid: { count: number; amount: number }; cancelled: { count: number; amount: number };
+  days_to_pay: number | null;
+  recent: { sent: number; sent_amount: number; paid: number; paid_amount: number; paid_pct: number };
+  ages: { key: string; label: string; count: number; amount: number }[];
+  followup: { not_followed_up: number; never_called: number; status_not_updated: number; avg_calls: number; calls_per_client: number; calls_per_po: number; on_hold: number };
+  worst: { client: string; so: string; amount: number; day: number; calls: number; note: string }[];
+  clients: { client: string; open: number; amount: number; oldest: number }[];
+  split: { name: string; open: number; amount: number; stale: number; late: number }[];
+  split_label: string;
+  cancellations: {
+    count: number; amount: number; rate_pct: number; pos: number; at_risk: { count: number; amount: number };
+    recent: { client: string; so: string; amount: number; made: string; note: string }[];
+  };
+  discipline: {
+    expected: number; done: number; missed: number; compliance_pct: number; escalated: { l1: number; l2: number; l3: number };
+    worst: { client: string; so: string; missed: number; expected: number; state: string }[];
+  };
+  summary: string;
+}
+
+export interface NudgeAllItem { name: string; group: string; count: number; ready: boolean; message: string; already_sent_minutes: number | null }
+export interface NudgeAllPreview { items: NudgeAllItem[]; ready: number; missing: string[]; test_mode: boolean }
+export interface NudgeAllResult { sent: string[]; skipped_recent: string[]; missing: string[]; sent_at: string; test_mode: boolean }
+
+export interface ReturnsData extends Envelope {
+  title: string;
+  kpis: Kpi[];
+  notices: Notice[];
+  policy_days: number;
+  box: string;
+  windows: { key: string; label: string }[];
+  window: { key?: string; label?: string; start?: string; rows?: number; log_rows?: number };
+  boxes: { key: string; label: string; count: number; pcs: number; amount: number }[];
+  reasons: { reason: string; pcs: number }[];
+  pending: TableData;
+  pending_total?: number;
+  months: TableData;
+  clients: TableData;
+  policy: TableData;
+  ratios?: { pass_pct: number; fail_pct: number; called_pct: number; policy_pct: number };
 }
