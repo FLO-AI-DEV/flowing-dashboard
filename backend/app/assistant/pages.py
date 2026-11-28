@@ -36,7 +36,7 @@ PAGES: dict[str, Page] = {p.key: p for p in [
          "One row per client: orders, sets, open orders, sales person, last order and days since the last order, "
          "plus how many clients ordered more than once and how many have been quiet for 30+ days.",
          {"channel": "channel", "sales_person": "sales_person"}, 4),
-    Page("payments", "Payments", "/payments", ("payments page", "payment follow up", "payment followup",
+    Page("payments", "PO follow-up", "/payments", ("payments page", "payment follow up", "payment followup",
                                                "pending payments", "collections"),
          "The CRM payment follow-up sheet: pending payments (₹), orders not followed up, collected and cancelled this "
          "month, one row per CRM member and every pending payment with its client, SO, amount and last follow-up.",

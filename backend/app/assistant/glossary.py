@@ -168,7 +168,7 @@ def answer(question: str) -> dict | None:
         return None
     text = f"**{term.name}**: {term.meaning}"
     if term.where:
-        text += f"\n\n_Where:_ {term.where}"
+        text += f"\n\nWhere: {term.where}"
     return {"answer": text, "page": None, "page_label": None, "context": {}, "understood": True,
             "intent": "glossary", "engine": "glossary"}
 
